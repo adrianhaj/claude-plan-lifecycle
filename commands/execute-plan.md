@@ -404,23 +404,50 @@ is already done.
 
 ### S4 — Cross-link the stack
 
-After the last slice's PR exists, update every stack PR body via
-`gh pr edit <PR_NUM[N]> --body <updated>`: replace each body's `## Stack`
-section with the full table, preserving its Summary, Rulings, Follow-ups,
-and Verification sections untouched:
+After the last slice's PR exists, link the PRs into a GitHub native stack so
+`/pr-fix` and `/restack` read stack membership from GitHub and GitHub enforces
+merge order:
 
-```markdown
-## Stack (part <N> of <M>)
-
-| PR | Slice | Base |
-|----|-------|------|
-| #<PR_NUM[1]> | <slice 1 title> | <DEFAULT_BRANCH> |
-| #<PR_NUM[2]> | <slice 2 title> | <BRANCH[1]> |
-| ... | ... | ... |
+```bash
+gh stack link <PR_NUM[1]> <PR_NUM[2]> ... <PR_NUM[M]>
+STACK_NUM="$(gh api repos/{owner}/{repo}/pulls/<PR_NUM[1]> --jq '.stack.number // empty')"
 ```
 
-This is the one sanctioned `gh pr edit` in this command, limited to bodies
-of PRs this run (or a resumed run of the same stack) created.
+Pass PR numbers, never branch names (branch arguments make `gh stack link`
+push), and never `--open` (the PRs stay drafts). It needs no local
+`gh stack` tracking, and on a resumed run it adds missing PRs to the
+existing stack. If `gh stack` is not installed, `link` fails, or
+`STACK_NUM` comes back empty (native stacks not enabled for this repo), say
+so in one line and continue without a native stack.
+
+Then update every stack PR body via `gh pr edit <PR_NUM[N]> --body <updated>`,
+replacing only its `## Stack` section and preserving Summary, Rulings,
+Follow-ups, and Verification untouched:
+
+- **Native stack linked** — no table (the stack UI is authoritative and a
+  hand-kept table drifts):
+
+  ```markdown
+  ## Stack
+
+  Part <N> of <M> in stack #<STACK_NUM>.
+  ```
+
+- **No native stack** — the full table:
+
+  ```markdown
+  ## Stack (part <N> of <M>)
+
+  | PR | Slice | Base |
+  |----|-------|------|
+  | #<PR_NUM[1]> | <slice 1 title> | <DEFAULT_BRANCH> |
+  | #<PR_NUM[2]> | <slice 2 title> | <BRANCH[1]> |
+  | ... | ... | ... |
+  ```
+
+`gh stack link` and these `gh pr edit` calls are the only sanctioned
+mutations beyond PR creation, limited to PRs this run (or a resumed run of
+the same stack) created.
 
 ### S5 — Stamp and report
 
@@ -435,7 +462,7 @@ each item's slice.
 Final report:
 
 ```
-Stack opened (<M> draft PRs):
+Stack opened (<M> draft PRs, native stack #<STACK_NUM>):   # or "no native stack"
 #<PR_NUM[1]>  <slice 1 title>   base: <DEFAULT_BRANCH>  test/lint: passed
 #<PR_NUM[2]>  <slice 2 title>   base: <BRANCH[1]>   test/lint: passed
 ...
@@ -453,7 +480,7 @@ retargets the next PR to `$DEFAULT_BRANCH`.
 - **Never push to the default branch.** Only pushes the current feature branch via `git push -u`.
 - **No `--force` push, no `--force-with-lease`, no `--no-verify`.** Plain commits, plain pushes; the repo's conventions govern message format.
 - **Halt-on-red.** Tests or lint red means stop. Do not fix forward, do not retry.
-- **No GitHub mutations beyond `gh pr create --draft`, `gh pr view`/`gh pr list` (read-only), and — stacked mode only — the S4 `gh pr edit` on bodies of PRs this stack created.** No auto-merge, no comment posting, no thread resolution.
+- **No GitHub mutations beyond `gh pr create --draft`, `gh pr view`/`gh pr list` (read-only), and — stacked mode only — the S4 `gh stack link` and `gh pr edit` on bodies of PRs this stack created.** No auto-merge, no comment posting, no thread resolution.
 - **Plan file is read for execution but never rewritten except to stamp the PR number** (frontmatter `pr:` field). No content edits. The only new plans-dir file is the Step 7a follow-ups stub.
 - **Stop semantics:** print the indicated message and end the turn. Do not advance to subsequent steps.
 - **Stacked mode:** slice branches are created only by the main

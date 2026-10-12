@@ -1,17 +1,22 @@
 ---
-description: Restack a stacked-PR chain — after a bottom PR squash-merges, or after a lower PR gained commits (e.g. from /pr-fix). Discovers the stack from GitHub's native stack object, cascade-rebases every branch whose parent moved, verifies the tip, then (after one confirmation) force-with-lease pushes and retargets the new bottom PR.
+description: Restack a stacked-PR chain — after a bottom PR squash-merges, after a lower PR gained commits (e.g. from /pr-fix), or when the bottom PR conflicts with or is behind the default branch. Discovers the stack from GitHub's native stack object, cascade-rebases every branch whose parent moved, verifies the tip, then (after one confirmation) force-with-lease pushes and retargets the new bottom PR.
 argument-hint: [stack number, PR number, or branch — optional anchor when the current branch is not part of the stack]
 ---
 
 # Restack
 
 Run whenever a stack (created by `/execute-plan` stacked mode) has a branch
-whose parent moved. Two triggers:
+whose parent moved. Three triggers:
 
 - **Bottom merged** — one or more bottom PRs squash-merged to the default
   branch. GitHub retargets the next PR but does not rebase its branch.
 - **Parent gained commits** — a lower PR was plain-pushed (typically by
   `/pr-fix`), so the branches above it no longer contain their parent's tip.
+- **Trunk moved under the bottom PR** — the bottom PR conflicts with, or is
+  required-but-not up to date with, the default branch. Stacked PRs update
+  by rebase, not by merging trunk in (GitHub's "Resolve conflicts" on a
+  stack says so), so the bottom branch is rebased onto trunk and the rest
+  cascades.
 
 Either way: cascade-rebase every branch whose parent tip is not in its
 history, verify the tip, and — after a single confirmation — force-with-lease
@@ -83,11 +88,18 @@ fallback for ordering.
    `B[1..S]` bottom-up. For each, record the pre-rebase remote head
    `OLD_HEAD[i] = $(git rev-parse "origin/B[i]")` (missing → stop: "Remote
    branch `B[i]` not found — was it deleted? Resolve manually."). Then:
-   - `i = 1`: needs rebase iff the merged prefix is non-empty.
+   - `i = 1`, merged prefix non-empty: needs rebase.
      `NEW_BASE[1] = origin/$DEFAULT_BRANCH`, `OLD_BASE[1]` = the newest merged
-     slice's head SHA (works even though GitHub deleted the branch). Trunk
-     drift alone (nothing merged) is not a reason to rebase — merging handles
-     it.
+     slice's head SHA (works even though GitHub deleted the branch).
+   - `i = 1`, nothing merged: needs rebase iff its PR's
+     `gh pr view <PR> --json mergeable,mergeStateStatus` shows
+     `mergeable == CONFLICTING` or `mergeStateStatus == BEHIND` (`UNKNOWN`
+     means GitHub is still computing — re-query once after a few seconds;
+     still `UNKNOWN` → treat as not needing a rebase and say so).
+     `NEW_BASE[1] = origin/$DEFAULT_BRANCH`,
+     `OLD_BASE[1] = $(git merge-base "origin/$DEFAULT_BRANCH" "$OLD_HEAD[1]")`.
+     Trunk merely moving ahead, with the PR still clean and not required to
+     be up to date, is not a reason to rebase.
    - `i > 1`: needs rebase iff
      `git merge-base --is-ancestor "$OLD_HEAD[i-1]" "$OLD_HEAD[i]"` fails
      **or** `B[i-1]` itself is being rebased (a rewritten parent always
@@ -103,7 +115,7 @@ fallback for ordering.
    ```
    Stack #<STACK_NUM>: <plan/stack name if evident from titles>
    Merged:    #<n> <title> … (old base SHA <short OLD_BASE[1]>)   [or: none]
-   Restack:   B[1] ← origin/$DEFAULT_BRANCH        (bottom merged)
+   Restack:   B[1] ← origin/$DEFAULT_BRANCH        (bottom merged | conflicts with trunk | behind trunk)
               B[2] ← B[1]                         (parent gained 9 commits)
               B[3] ← B[2]                         (cascade)
    Skip:      …                                   (already contains parent tip)
@@ -199,8 +211,10 @@ recipe."
    `gh pr view <PR of B[1]> --json baseRefName` — if already `$DEFAULT_BRANCH` (GitHub
    retargets when a stack PR merges, but does not rebase), skip; otherwise
    `gh pr edit <PR of B[1]> --base "$DEFAULT_BRANCH"`.
-2. **Update `## Stack` tables.** The native stack object is authoritative;
-   the table is documentation, so keep it truthful. For each surviving PR,
+2. **Update `## Stack` tables.** Skip PRs whose `## Stack` section has no
+   table (`/execute-plan` writes only a "Part N of M in stack #S" line on
+   native stacks — nothing there drifts). The native stack object is
+   authoritative; a table is documentation, so keep it truthful. For each surviving PR,
    edit ONLY its `## Stack` section (preserve Summary/Verification): annotate
    merged rows' PR column as `#<N> ✅ merged`, and set the first surviving
    row's Base to `$DEFAULT_BRANCH`. Same sanction boundary as `/execute-plan`
