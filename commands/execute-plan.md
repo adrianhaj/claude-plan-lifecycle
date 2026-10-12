@@ -117,9 +117,13 @@ Do **not** ask the user. Decide:
 
 Print one line naming the choice. Then **invoke the chosen skill** via the `Skill` tool, passing `PLAN_PATH` as the plan to execute plus this scope instruction — call it `FINISH_INSTRUCTION`:
 
-> When an implementer returns `DONE_WITH_CONCERNS` with observations you do not act on, ledger each one as `Task <N>: observation: <one-liner>`.
+> Ledger discovered work this run will not do, as you meet it — whoever finds it:
 >
-> When you reach the point where you would invoke `superpowers:finishing-a-development-branch`, do NOT — return control to `/execute-plan`, which opens the PR. Return your "Rulings I made" list verbatim in your final message; if you made no rulings, say so. Then return a "Follow-ups" list, verbatim: every `minor (deferred)` ledger line the final review did not get fixed, every `observation` ledger line, and every `parked` line whose ruling says the finding is real but deferred. If there are none, say so.
+> - an implementer's `DONE_WITH_CONCERNS` observation you do not act on, or something you notice yourself (including work in other repos): `Task <N>: observation: <one-liner>`
+> - follow-on work the plan itself defers (a "follow-ups" / "future work" list, or a step telling you to record follow-ups in the plan file — the plan file must not be edited, so ledger them instead): `Plan: observation: <one-liner>`
+> - a Minor finding from the final whole-branch review that is not fixed: `Final: minor (deferred): <one-liner>`
+>
+> When you reach the point where you would invoke `superpowers:finishing-a-development-branch`, do NOT — return control to `/execute-plan`, which opens the PR. Return your "Rulings I made" list verbatim in your final message; if you made no rulings, say so. Then return a "Follow-ups" list built from every `minor (deferred)`, `observation`, and real-but-deferred `parked` ledger line, curated: merge lines that describe the same issue into one item; drop items a later fix closed; where a later review showed a line's description is wrong, correct it and mark it `(corrected: <what changed>)`. Each item keeps its source tags (e.g. `Task 3, Final`). If there are none, say so.
 
 Both skills end by invoking `finishing-a-development-branch`, which presents merge/PR/keep options that collide with Steps 5–7. The instruction above pre-empts that. Capture the returned rulings list as `RULINGS` and the follow-ups list as `FOLLOWUPS` (each empty if none — `executing-plans` normally returns neither). Follow-ups are discovered work the run did not do; without this capture they die with the skill's workspace.
 
@@ -182,9 +186,9 @@ Use plain `git commit` — no `--no-verify`. Follow the repo's commit-message co
 
    ## Follow-ups
 
-   <one bullet per entry in FOLLOWUPS — the one-liner and the task it came
-   from. Known issues deliberately left out of this PR; a reviewer may ask
-   for one to be fixed here. Omit the whole section when FOLLOWUPS is
+   <one bullet per FOLLOWUPS item — the one-liner and its source tags.
+   Known issues deliberately left out of this PR; a reviewer may ask for
+   one to be fixed here. Omit the whole section when FOLLOWUPS is
    empty.>
 
    ## Verification
@@ -244,7 +248,7 @@ what survives into a plan (brainstorming → writing-plans).
 
 ## <one-liner of item 1>
 
-<the verbatim ledger line, and the task it came from>
+<the item as returned — source tags, and any `(corrected: …)` note>
 
 ## <one-liner of item 2>
 ...
