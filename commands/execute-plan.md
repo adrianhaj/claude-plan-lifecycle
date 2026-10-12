@@ -117,9 +117,11 @@ Do **not** ask the user. Decide:
 
 Print one line naming the choice. Then **invoke the chosen skill** via the `Skill` tool, passing `PLAN_PATH` as the plan to execute plus this scope instruction — call it `FINISH_INSTRUCTION`:
 
-> When you reach the point where you would invoke `superpowers:finishing-a-development-branch`, do NOT — return control to `/execute-plan`, which opens the PR. Return your "Rulings I made" list verbatim in your final message; if you made no rulings, say so.
+> When an implementer returns `DONE_WITH_CONCERNS` with observations you do not act on, ledger each one as `Task <N>: observation: <one-liner>`.
+>
+> When you reach the point where you would invoke `superpowers:finishing-a-development-branch`, do NOT — return control to `/execute-plan`, which opens the PR. Return your "Rulings I made" list verbatim in your final message; if you made no rulings, say so. Then return a "Follow-ups" list, verbatim: every `minor (deferred)` ledger line the final review did not get fixed, every `observation` ledger line, and every `parked` line whose ruling says the finding is real but deferred. If there are none, say so.
 
-Both skills end by invoking `finishing-a-development-branch`, which presents merge/PR/keep options that collide with Steps 5–7. The instruction above pre-empts that. Capture the returned rulings list as `RULINGS` (empty if none — `executing-plans` keeps no ledger and normally returns none).
+Both skills end by invoking `finishing-a-development-branch`, which presents merge/PR/keep options that collide with Steps 5–7. The instruction above pre-empts that. Capture the returned rulings list as `RULINGS` and the follow-ups list as `FOLLOWUPS` (each empty if none — `executing-plans` normally returns neither). Follow-ups are discovered work the run did not do; without this capture they die with the skill's workspace.
 
 **Stacked mode exception:** do NOT invoke here — record the choice and jump to the Stacked execution section; the skill is invoked once per slice in S3 with a slice-scoped instruction.
 
@@ -178,6 +180,13 @@ Use plain `git commit` — no `--no-verify`. Follow the repo's commit-message co
    author's behalf; the PR is where they become reviewable. Omit the whole
    section when RULINGS is empty.>
 
+   ## Follow-ups
+
+   <one bullet per entry in FOLLOWUPS — the one-liner and the task it came
+   from. Known issues deliberately left out of this PR; a reviewer may ask
+   for one to be fixed here. Omit the whole section when FOLLOWUPS is
+   empty.>
+
    ## Verification
 
    ### Tests (`$TEST_CMD`)
@@ -209,6 +218,43 @@ Per the plan-lifecycle convention: every plans file of the effort must carry the
 2. **No frontmatter** — stop: "Plan has no frontmatter — add it per the `plan-frontmatter` skill, then stamp with `stamp-plans -f <plan> <PR_NUM>`."
 3. If the plans dir is gitignored (the default `local/` convention), the stamp needs no commit — `reap-plans` reads it from the filesystem in any worktree. If your plans dir is tracked in git, commit the stamped file(s) to the branch instead.
 
+## Step 7a — Write the follow-ups stub
+
+Skip this step when `FOLLOWUPS` is empty.
+
+Otherwise write `$PLANS_DIR/<today YYYY-MM-DD>-<slug>-followups.md`, where
+`<slug>` is the plan's frontmatter `slug`. If that file already exists (a
+re-run), append the new items instead of overwriting. No confirmation — it is
+a local file the user triages later.
+
+```markdown
+---
+title: Follow-ups from <PLAN_TITLE>
+slug: <slug>-followups
+issue:
+status: draft
+pr:
+---
+# Follow-ups from <PLAN_TITLE>
+
+Parent plan: <basename of PLAN_PATH> · PR <PR URL> · Issue <ISSUE_REF, or "none">
+
+Discovered during execution and deliberately not done. Triage, then turn
+what survives into a plan (brainstorming → writing-plans).
+
+## <one-liner of item 1>
+
+<the verbatim ledger line, and the task it came from>
+
+## <one-liner of item 2>
+...
+```
+
+The stub gets its **own** slug: under the parent's slug `reap-plans` would
+archive it with the parent the moment the parent's PR merges. `issue:` stays
+empty: inheriting the parent's issue would demand a second `Closes` on an
+issue the parent PR already closes — the body links it instead.
+
 ## Step 8 — Report
 
 Print one final message to chat:
@@ -219,6 +265,7 @@ PR: <PR URL> (#<PR_NUM>, draft)
 $TEST_CMD: passed
 $LINT_CMD: passed
 Plan stamped with PR number.
+Follow-ups: <stub path> (<n> items)   # or "Follow-ups: none"
 ```
 
 That's the entire output. No JSON sidecar, no aggregation.
@@ -289,9 +336,11 @@ is already done.
    `git merge-base`. Keep the plan's workspace (`.superpowers/sdd/<plan>/`)
    after the final review unless this is slice <M> of <M>; earlier slices'
    parked findings live there."
-   followed by `FINISH_INSTRUCTION`. The skill returns every ruling in the
-   shared ledger, including earlier slices'. Set `RULINGS[N]` = returned
-   list minus every entry already in `RULINGS[1..N-1]`.
+   followed by `FINISH_INSTRUCTION`. The skill returns every ruling and
+   follow-up in the shared ledger, including earlier slices'. Set
+   `RULINGS[N]` = returned rulings minus every entry already in
+   `RULINGS[1..N-1]`, and `FOLLOWUPS[N]` likewise against
+   `FOLLOWUPS[1..N-1]`.
 3. **Verify** — identical to Step 4 (`$TEST_CMD`, `$LINT_CMD`, halt-on-red),
    capturing `TEST_TAIL[N]` / `LINT_TAIL[N]`. On red, stop: "Slice <N>
    failed <check>. Slices 1..<N-1> are pushed and green; worktree preserved
@@ -322,6 +371,11 @@ is already done.
    <one bullet per entry in RULINGS[N], as in Step 6; omit the section
    when empty>
 
+   ## Follow-ups
+
+   <one bullet per entry in FOLLOWUPS[N], as in Step 6; omit the section
+   when empty>
+
    ## Stack
 
    (filled in after the last slice)
@@ -348,8 +402,8 @@ is already done.
 
 After the last slice's PR exists, update every stack PR body via
 `gh pr edit <PR_NUM[N]> --body <updated>`: replace each body's `## Stack`
-section with the full table, preserving its Summary, Rulings, and
-Verification sections untouched:
+section with the full table, preserving its Summary, Rulings, Follow-ups,
+and Verification sections untouched:
 
 ```markdown
 ## Stack (part <N> of <M>)
@@ -370,6 +424,10 @@ Stamp the **tip PR only**, exactly per Step 7's procedure, with
 `<PR_NUM[M]>` as the number (tip merges last under the squash cascade, so
 tip-merged ⇔ whole stack merged; `reap-plans` unchanged).
 
+Then write the follow-ups stub per Step 7a over `FOLLOWUPS[1..M]` (only the
+slices this run executed), linking every stack PR in the header and noting
+each item's slice.
+
 Final report:
 
 ```
@@ -378,6 +436,7 @@ Stack opened (<M> draft PRs):
 #<PR_NUM[2]>  <slice 2 title>   base: <BRANCH[1]>   test/lint: passed
 ...
 Plan stamped with tip PR #<PR_NUM[M]>.
+Follow-ups: <stub path> (<n> items)   # or "Follow-ups: none"
 Merging is a cascade: after each squash-merge, run /restack in this
 worktree — it rebases the surviving branches, verifies the tip, and
 retargets the next PR to `$DEFAULT_BRANCH`.
@@ -391,7 +450,7 @@ retargets the next PR to `$DEFAULT_BRANCH`.
 - **No `--force` push, no `--force-with-lease`, no `--no-verify`.** Plain commits, plain pushes; the repo's conventions govern message format.
 - **Halt-on-red.** Tests or lint red means stop. Do not fix forward, do not retry.
 - **No GitHub mutations beyond `gh pr create --draft`, `gh pr view`/`gh pr list` (read-only), and — stacked mode only — the S4 `gh pr edit` on bodies of PRs this stack created.** No auto-merge, no comment posting, no thread resolution.
-- **Plan file is read for execution but never rewritten except to stamp the PR number** (frontmatter `pr:` field). No content edits.
+- **Plan file is read for execution but never rewritten except to stamp the PR number** (frontmatter `pr:` field). No content edits. The only new plans-dir file is the Step 7a follow-ups stub.
 - **Stop semantics:** print the indicated message and end the turn. Do not advance to subsequent steps.
 - **Stacked mode:** slice branches are created only by the main
   session, never by subagents. Slice N's PR always bases on slice N−1's

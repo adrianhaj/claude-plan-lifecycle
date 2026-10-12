@@ -26,7 +26,9 @@ pr:
   follow-up docs) for the SAME unit of work carry the SAME slug. `reap-plans`
   groups files by slug and reaps a whole group together. Pick the slug once
   (kebab-case, e.g. `split-state-enum`) and reuse it verbatim on every related
-  file.
+  file. Exception: a `-followups.md` stub written by `/execute-plan` is new,
+  not-yet-done work and takes its own slug `<slug>-followups`, so it is not
+  reaped with its parent.
 - **issue** — the root issue the effort addresses. Bare number (`issue: 3178`)
   for an issue in the same repo; `org/repo#N` form for cross-repo. Shared
   across the slug group like `title`. Leave empty (`issue:`) only when the

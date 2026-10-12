@@ -38,7 +38,7 @@ aggressive about writing plans without accumulating a graveyard.
 | `plan-frontmatter` | skill | Frontmatter spec, status ownership, and the stacked-PR slicing convention (`## PR N:` headings) |
 | `reap-plans` | skill | Wraps `bin/reap-plans` with run order and conventions |
 | `handoff-prompt` | skill | Generates a self-contained prompt to continue work in a fresh session |
-| `/execute-plan` | command | Drives a plan end-to-end in a worktree: execution skill → test/lint verify → draft PR → stamp. Plans with `## PR N:` slice headings become a stacked-PR chain |
+| `/execute-plan` | command | Drives a plan end-to-end in a worktree: execution skill → test/lint verify → draft PR → stamp. Discovered-but-deferred work lands in the PR body and a `<slug>-followups.md` stub. Plans with `## PR N:` slice headings become a stacked-PR chain |
 | `/restack` | command | After a stack's bottom PR squash-merges, or after a lower slice gained commits: cascade-rebase every branch whose parent moved, verify the tip, force-with-lease push behind a confirmation gate, retarget the new bottom PR. Discovers the stack from GitHub's native stack object; accepts a stack number |
 | `/pr-fix` | command | Fetch PR review comments, plan fixes, implement and push; drafts replies for you to post (never posts to GitHub itself). Takes a PR or stack number plus optional free-text guidance for the fixes; on a stacked PR each fix lands in the slice that owns the code, then `/restack` rebases the slices above |
 | `/pr-fix-loop` | command | Loop `/pr-fix` autonomously: fix → push → wait for the automated review workflow's next review → repeat, until the review is clean or 5 rounds have run |
