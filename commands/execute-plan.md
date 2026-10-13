@@ -1,5 +1,5 @@
 ---
-description: "Execute a plan from the repo's plans dir in the current worktree — runs the chosen execution skill (subagent-driven-development or executing-plans), then verifies (test/lint), opens draft PR, stamps the plan's frontmatter pr: field. Plans with \"## PR N:\" slice headings execute as a stacked-PR chain (one draft PR per slice, each based on the previous; tip PR stamped)."
+description: "Execute a plan from the plans dir in this worktree — implement, verify, open a draft PR (a stacked chain for '## PR N:' slices) and stamp the plan."
 argument-hint: [plan-path — optional, auto-detected from branch name]
 model: opus
 effort: high
