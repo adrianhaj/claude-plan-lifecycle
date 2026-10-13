@@ -95,40 +95,14 @@ Each result ends with the review's findings as a JSON array — `file`, `line`,
 
 `/code-review` runs no verification at these levels and takes no context
 beyond its target, so it cannot know what the PR body, the ADRs or the slices
-above already settle. In a single message, launch one `general-purpose` agent
-through the `Agent` tool per slice with findings, with this prompt:
-
-```
-Verify the findings of an automated review of PR #<N> (slice <P>/<SIZE> of
-stack #<S>) in <OWNER/REPO>. Do not edit files, switch branches or post
-anything.
-
-- This slice's code: `git show <sha>:<path>`. Its diff: `gh pr diff <N>`.
-- The top of the stack: `git show <top sha>:<path>`. The slices above this
-  one: <#M (<head>), …, or "none">.
-- Documented decisions: the PR body (`gh pr view <N> --json body`), and, at
-  the top of the stack, the repo's ADRs (e.g. `docs/adr/`) and CLAUDE.md files.
-
-For each finding, in order, give a verdict:
-- CONFIRMED: the failure scenario follows from this slice's code. Quote the line.
-- PLAUSIBLE: the mechanism is real but the trigger is uncertain (timing,
-  environment, config). Say what would confirm it. A realistic race, a rare
-  but reachable nil or a partial failure is PLAUSIBLE, not REJECTED.
-- REJECTED: only when one of these holds, and cite it:
-  - the code doesn't do what the finding says (quote the line);
-  - it is guarded in this slice or one below (cite the guard);
-  - the PR body, an ADR or a CLAUDE.md records it as a decision (quote it);
-  - a slice above already fixes it or rules it out ("fixed in #<M>", quote
-    the line at the top).
-and a kind: `bug` (wrong behaviour) or `nit` (cleanup, naming, duplication,
-style, test tidiness, or a cost with no observable effect).
-
-Return only a JSON array, one object per finding, in the given order:
-[{"verdict": "CONFIRMED|PLAUSIBLE|REJECTED", "kind": "bug|nit", "evidence": "<one or two sentences with the quote>"}]
-
-Findings:
-<the review's JSON array>
-```
+above already settle. Read the verifier prompt in the `## Verifier prompt`
+section of `${CLAUDE_PLUGIN_ROOT}/commands/verify-findings.md` — the one
+`/plan-lifecycle:verify-findings` uses for a single review. In a single
+message, launch one `general-purpose` agent through the `Agent` tool per slice
+with findings, with that prompt filled in from its **Stacked PR** row (the
+**PR** row when `SIZE = 1`): `<sha>` is the slice's head, `<top sha>` the
+top's, and the findings are the review's JSON array. Every sha is in this
+checkout, so nothing needs fetching.
 
 Wait for all of them. A slice whose verifier fails or returns an array of the
 wrong length is **unverified**: say so in its block, and Step 3 does not post
