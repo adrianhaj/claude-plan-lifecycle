@@ -432,11 +432,14 @@ What it costs if the change turns out wrong after merge.
 The chance it breaks after merge.
 
 - low: small or mechanical, CI runs the touched code, and every claim
-  reproduced.
+  about behaviour reproduced.
 - medium: a real logic change, tested, and CI covers it partly.
 - high: the touched code runs only on paths under CI never runs, a claim
-  failed, key claims are not reproducible here, or a large diff has few
-  tests.
+  about behaviour failed, key claims are not reproducible here, or a large
+  diff has few tests.
+
+A stale number or a wrong sentence in a comment or the description is a
+finding, but it does not raise the risk.
 
 ### CI never runs
 
