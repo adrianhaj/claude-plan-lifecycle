@@ -130,7 +130,8 @@ stamping, reaping into `<plans-dir>/done/` — works identically.
 Slice a big plan at *writing* time by grouping tasks under `## PR N: <conventional-commits title>`
 headings (the `plan-frontmatter` skill says when and where to cut — size, not layer count).
 `/execute-plan` then opens one draft PR per slice, each based on the previous, each independently
-green, and cross-links them with a `## Stack` table. Only the tip PR gets stamped into the plan —
+green, and links them as a GitHub native stack (`gh stack link`), falling back to a `## Stack`
+table when that isn't available. Only the tip PR gets stamped into the plan —
 under squash-merge cascade, tip-merged ⇔ stack-merged. GitHub's native stack object (the `stack`
 field on each PR, `repos/{owner}/{repo}/stacks/{N}`) is the source of truth for ordering; the
 table is documentation. After each bottom PR merges — or after `/pr-fix` pushes to a lower slice —

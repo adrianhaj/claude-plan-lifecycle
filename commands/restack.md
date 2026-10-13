@@ -1,6 +1,6 @@
 ---
 description: Restack a stacked-PR chain — after a bottom PR squash-merges, after a lower PR gained commits (e.g. from /pr-fix), or when the bottom PR conflicts with or is behind the default branch. Discovers the stack from GitHub's native stack object, cascade-rebases every branch whose parent moved, verifies the tip, then (after one confirmation) force-with-lease pushes and retargets the new bottom PR.
-argument-hint: [stack number, PR number, or branch — optional anchor when the current branch is not part of the stack]
+argument-hint: [stack number, PR number, or branch — optional anchor when the current branch is not part of the stack] [--no-trunk]
 ---
 
 # Restack
@@ -16,7 +16,9 @@ whose parent moved. Three triggers:
   required-but-not up to date with, the default branch. Stacked PRs update
   by rebase, not by merging trunk in (GitHub's "Resolve conflicts" on a
   stack says so), so the bottom branch is rebased onto trunk and the rest
-  cascades.
+  cascades. `--no-trunk` turns this trigger off: `/pr-fix` passes it, because
+  its restack only carries a fix upward and must not rewrite slices below
+  the fix.
 
 Either way: cascade-rebase every branch whose parent tip is not in its
 history, verify the tip, and — after a single confirmation — force-with-lease
@@ -58,8 +60,8 @@ Live truth comes from GitHub's native stack object (`repos/{owner}/{repo}/stacks
 the `## Stack` table in PR bodies is human-facing documentation and only a
 fallback for ordering.
 
-1. **Anchor.** If `$ARGUMENTS` is non-empty, treat the first token as the
-   anchor. A bare number is tried as a **stack number** first
+1. **Anchor.** Take `--no-trunk` out of `$ARGUMENTS` first. If what's left
+   is non-empty, treat its first token as the anchor. A bare number is tried as a **stack number** first
    (`gh api repos/{owner}/{repo}/stacks/<N>` — 200 means it is a stack), then
    as a PR number; anything else is a branch name. Otherwise the anchor is the
    current branch (`gh pr view --json number` gives its PR).
@@ -91,11 +93,23 @@ fallback for ordering.
    - `i = 1`, merged prefix non-empty: needs rebase.
      `NEW_BASE[1] = origin/$DEFAULT_BRANCH`, `OLD_BASE[1]` = the newest merged
      slice's head SHA (works even though GitHub deleted the branch).
-   - `i = 1`, nothing merged: needs rebase iff its PR's
-     `gh pr view <PR> --json mergeable,mergeStateStatus` shows
-     `mergeable == CONFLICTING` or `mergeStateStatus == BEHIND` (`UNKNOWN`
-     means GitHub is still computing — re-query once after a few seconds;
-     still `UNKNOWN` → treat as not needing a rebase and say so).
+   - `i = 1`, nothing merged, no `--no-trunk`: read its PR's
+     `gh pr view <PR> --json mergeable,mergeStateStatus`. It needs a rebase iff
+     `mergeable == CONFLICTING`, or it is behind trunk
+     (`git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" "$OLD_HEAD[1]"`
+     fails) and trunk requires branches to be up to date. Trunk requires it
+     when `mergeStateStatus == BEHIND`, or when either of these prints `true`
+     (an error counts as no — classic protection is not always readable):
+     ```bash
+     gh api repos/{owner}/{repo}/rules/branches/$DEFAULT_BRANCH \
+       --jq 'any(.[]; .type == "required_status_checks" and .parameters.strict_required_status_checks_policy)'
+     gh api repos/{owner}/{repo}/branches/$DEFAULT_BRANCH/protection/required_status_checks --jq .strict
+     ```
+     `mergeStateStatus` alone is not enough: a draft reports `DRAFT`, and a
+     PR missing a required review `BLOCKED`, in place of `BEHIND`.
+     `mergeable == UNKNOWN` means GitHub is still computing — re-query up to
+     3 times, 5 seconds apart; still `UNKNOWN` → treat it as no conflict and
+     note it for the report below.
      `NEW_BASE[1] = origin/$DEFAULT_BRANCH`,
      `OLD_BASE[1] = $(git merge-base "origin/$DEFAULT_BRANCH" "$OLD_HEAD[1]")`.
      Trunk merely moving ahead, with the PR still clean and not required to
@@ -107,7 +121,10 @@ fallback for ordering.
      `OLD_BASE[i] = $(git merge-base "$OLD_HEAD[i-1]" "$OLD_HEAD[i]")` — this
      is the fork point whether the parent was rewritten (then it equals the
      old parent head) or merely gained commits.
-   If no branch needs a rebase: if the bottom PR's base is already
+   If no branch needs a rebase and the bottom PR's `mergeable` stayed
+   `UNKNOWN`, report "Can't tell yet whether #<PR> conflicts with
+   `$DEFAULT_BRANCH` — GitHub is still computing it. Re-run `/restack` in a
+   minute." and stop. Otherwise, if the bottom PR's base is already
    `$DEFAULT_BRANCH` and the `## Stack` tables are current, report "Stack
    already restacked — nothing to do." and stop; otherwise skip to Step 6.
 5. **Print the plan of record** before touching anything:

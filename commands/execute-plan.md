@@ -409,15 +409,19 @@ After the last slice's PR exists, link the PRs into a GitHub native stack so
 merge order:
 
 ```bash
-gh stack link <PR_NUM[1]> <PR_NUM[2]> ... <PR_NUM[M]>
+REPO_URL="$(gh repo view --json url -q .url)"
+gh stack link "$REPO_URL/pull/<PR_NUM[1]>" "$REPO_URL/pull/<PR_NUM[2]>" ... "$REPO_URL/pull/<PR_NUM[M]>"
 STACK_NUM="$(gh api repos/{owner}/{repo}/pulls/<PR_NUM[1]> --jq '.stack.number // empty')"
 ```
 
-Pass PR numbers, never branch names (branch arguments make `gh stack link`
-push), and never `--open` (the PRs stay drafts). It needs no local
-`gh stack` tracking, and on a resumed run it adds missing PRs to the
-existing stack. If `gh stack` is not installed, `link` fails, or
-`STACK_NUM` comes back empty (native stacks not enabled for this repo), say
+Pass PR URLs, never bare numbers or branch names: `gh stack link` takes a
+number that isn't an existing PR as a branch name, and a branch argument
+makes it push and open a PR. A URL is always resolved as a PR, so a bad
+`PR_NUM` fails the link instead. Never pass `--open` (the PRs stay drafts).
+It needs no local `gh stack` tracking, and on a resumed run it adds missing
+PRs to the existing stack. If `link` succeeded but `STACK_NUM` is empty, wait
+a few seconds and query again — a new stack may not be readable yet. If
+`gh stack` is not installed, `link` fails, or `STACK_NUM` is still empty, say
 so in one line and continue without a native stack.
 
 Then update every stack PR body via `gh pr edit <PR_NUM[N]> --body <updated>`,
