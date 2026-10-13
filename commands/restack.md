@@ -105,8 +105,8 @@ fallback for ordering.
        --jq 'any(.[]; .type == "required_status_checks" and .parameters.strict_required_status_checks_policy)'
      gh api repos/{owner}/{repo}/branches/$DEFAULT_BRANCH/protection/required_status_checks --jq .strict
      ```
-     `mergeStateStatus` alone is not enough: a draft reports `DRAFT`, and a
-     PR missing a required review `BLOCKED`, in place of `BEHIND`.
+     `mergeStateStatus` alone is not enough: it holds a single state, so
+     another one (e.g. `BLOCKED`) can stand in place of `BEHIND`.
      `mergeable == UNKNOWN` means GitHub is still computing — re-query up to
      3 times, 5 seconds apart; still `UNKNOWN` → treat it as no conflict and
      note it for the report below.
