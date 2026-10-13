@@ -194,7 +194,7 @@ Posted: <the review's html_url>        (POST only)
 | 2 | `path/to/file.go:140` | plausible, nit | <one-line summary> |
 
 Rejected:
-- `path/to/file.go:88` <one-line summary> — <the verifier's reason, e.g. fixed in #M, ADR 0006>
+- `path/to/file.go:88` <one-line summary> — <the verifier's reason, e.g. fixed in #M, or the ADR that records it>
 ```
 
 `No findings.` for a clean slice; leave out `Rejected:` when none were. Keep
