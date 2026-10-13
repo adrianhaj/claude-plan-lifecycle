@@ -41,7 +41,8 @@ or `Stack #<S> (<K> open PRs)`.
 slice branches): `git status --porcelain` must have no non-`??` lines (the
 `?? local` symlink line is expected), and the current branch must not be the
 default branch. Otherwise stop: "Stack mode needs a clean tree on a stack
-branch."
+branch." Then `git fetch origin`, so the `origin/<branch>` refs that blame,
+the tip check and the checkouts read are current.
 
 ## Step 1 — Fetch review state
 
@@ -76,8 +77,8 @@ user's *replies* inside threads started by someone else.
 self-notes**, though they sit under the user's account: `/review-stack
 --comment` posted them from an automated review. Treat each like an external
 reviewer's comment, with `review-stack` as the reviewer — verify it, then
-bucket it. The marked review's body holds the findings whose lines were off
-the diff; each of those is a comment too.
+bucket it. The marked review's body holds the findings on files outside the
+diff; each of those is a comment too.
 
 ## Step 2 — Classify and plan
 

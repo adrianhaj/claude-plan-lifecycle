@@ -19,7 +19,9 @@ Split `$ARGUMENTS`: if the first token is a number it is the target; everything
 after it (or all of `$ARGUMENTS` when the first token is not a number) is
 `REVIEW_ARGS`, passed verbatim to every review (an effort level,
 `--max-findings <n>`). `--comment` is taken out of `REVIEW_ARGS` and sets
-`POST`: the reviews do not post, Step 2 does.
+`POST`: the reviews do not post, Step 2 does. `--fix` stops the command: each
+review would apply its findings to the same checkout. Tell the user to post
+with `--comment` and fix with `/plan-lifecycle:pr-fix` instead.
 
 - **The target is a bare number** — try it as a **stack number** first:
   `gh api repos/OWNER/REPO/stacks/<N>`. Stacks draw from the same number
@@ -32,7 +34,8 @@ after it (or all of `$ARGUMENTS` when the first token is not a number) is
   - `null` or `size == 1` → the PR is its own one-slice stack: `TARGET_PRS` is
     that PR alone, `SIZE = 1`, with its `title`, `head.ref`, `base.ref` and
     head `sha` from `gh pr view <PR> --json title,headRefName,baseRefName,headRefOid`.
-    Skip to the header.
+    Wherever `slice <P>/<SIZE> of stack #<S>` or `Stack #<S>` appears below,
+    write `PR #<N>` instead. Skip to the pre-flight.
   - otherwise `STACK_NUM = .stack.number`.
 
 Fetch the stack once, with everything the summary needs:
@@ -82,18 +85,23 @@ Posting here, not in the reviews, is what lets every comment carry the marker
 `<!-- plan-lifecycle:review-stack -->` that `/pr-fix` keys on. For each slice
 with findings, post one review:
 
-- **Inline or in the body.** In `gh pr diff <N>`, a hunk header
-  `@@ -a,b +c,d @@` covers lines `c` to `c+d-1` of the new file. A finding
-  whose `file:line` falls in one becomes an inline comment; any other goes in
-  the review body — GitHub rejects the whole review if one comment is off the
-  diff.
-- **Post it** with `gh api repos/OWNER/REPO/pulls/<N>/reviews --method POST --input <file>`:
+- **Where each finding goes.** In `gh pr diff <N>`, a hunk header
+  `@@ -a,b +c,d @@` covers lines `c` to `c+d-1` of the new file (no `,d`
+  means one line; `,0` covers none).
+  - `file:line` inside a hunk → an inline comment in the review.
+  - `file` in the diff, line outside every hunk → a file-level comment, posted
+    after the review. GitHub rejects a whole review if one of its line
+    comments is off the diff, and the review call can't carry file-level
+    comments; posted on its own, one is a thread that can be resolved like
+    any other.
+  - `file` not in the diff → the review body.
+- **Post the review** with `gh api repos/OWNER/REPO/pulls/<N>/reviews --method POST --input <file>`:
 
   ```json
   {
     "commit_id": "<the slice's sha>",
     "event": "COMMENT",
-    "body": "Automated review (`/review-stack <REVIEW_ARGS>`), slice <P>/<SIZE> of stack #<S>: <n> findings.\n\n<one entry per off-diff finding: **`path:line`** summary, then failure_scenario>\n\n<!-- plan-lifecycle:review-stack -->",
+    "body": "Automated review (`/review-stack <REVIEW_ARGS>`), slice <P>/<SIZE> of stack #<S>: <n> findings.\n\n<one entry per finding whose file is not in the diff: **`path:line`** summary, then failure_scenario>\n\n<!-- plan-lifecycle:review-stack -->",
     "comments": [
       { "path": "<file>", "line": <line>, "side": "RIGHT",
         "body": "**<summary>**\n\n<failure_scenario>\n\n<!-- plan-lifecycle:review-stack -->" }
@@ -101,8 +109,14 @@ with findings, post one review:
   }
   ```
 
-  `commit_id` is the head recorded before the reviews ran, so the lines match
-  the code that was reviewed even if the branch moved since.
+- **Post each file-level comment** with `gh api repos/OWNER/REPO/pulls/<N>/comments --method POST -f commit_id=<the slice's sha> -f path=<file> -f subject_type=file -f body=<body>`,
+  the body being `` **`path:line`** <summary> ``, then the failure scenario
+  and the marker, each separated by a blank line.
+
+`commit_id` is the head recorded before the reviews ran. Before posting a
+slice, check `gh pr view <N> --json headRefOid` still matches it; if the
+branch moved, the review and the diff no longer describe the same code, so do
+not post that slice — say so in its block.
 
 Post each slice once. If a post fails, show the error in that slice's block
 and carry on with the others.
