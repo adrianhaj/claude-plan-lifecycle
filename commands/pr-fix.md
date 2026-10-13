@@ -41,7 +41,8 @@ or `Stack #<S> (<K> open PRs)`.
 slice branches): `git status --porcelain` must have no non-`??` lines (the
 `?? local` symlink line is expected), and the current branch must not be the
 default branch. Otherwise stop: "Stack mode needs a clean tree on a stack
-branch."
+branch." Then `git fetch origin`, so the `origin/<branch>` refs that blame,
+the tip check and the checkouts read are current.
 
 ## Step 1 — Fetch review state
 
@@ -72,6 +73,13 @@ moved).
 as **Self-note** (treated like Actionable, no reply drafted). Only skip the
 user's *replies* inside threads started by someone else.
 
+**Comments containing `<!-- plan-lifecycle:review-stack -->` are not
+self-notes**, though they sit under the user's account: `/review-stack
+--comment` posted them from an automated review. Treat each like an external
+reviewer's comment, with `review-stack` as the reviewer — verify it, then
+bucket it. The marked review's body holds the findings on files outside the
+diff; each of those is a comment too.
+
 ## Step 2 — Classify and plan
 
 Sort each remaining comment into one bucket:
@@ -79,12 +87,12 @@ Sort each remaining comment into one bucket:
 | Bucket | Meaning | Action |
 |---|---|---|
 | **Actionable** | Clear code change requested | Plan a code edit |
-| **Self-note** | The user's own inline note to self | Plan a code edit, no reply |
+| **Self-note** | The user's own inline note to self (no review-stack marker) | Plan a code edit, no reply |
 | **Question** | Reviewer asking for clarification, no code change | Draft a reply for the user |
 | **Suggestion** | Reviewer's preference — requires judgment | Evaluate, then either Actionable or Pushback |
 | **Nit** | Stylistic, low-stakes | Plan a code edit (cheap to address) |
 | **Pushback** | Suggestion is wrong for this codebase | Draft a reply explaining why |
-| **Stale** | Comment is on code that's since been changed | Skip, note it |
+| **Stale** | Comment is on code that's since been changed — in stack mode, also code a higher slice already fixed | Skip, note it |
 
 Severity prefixes from automated reviewers (`**blocking**:`, `nit:`,
 `suggestion:`) seed the bucket — `blocking` is Actionable unless verification
@@ -100,6 +108,14 @@ gives the commit; the owning slice is the one whose range
 never moves *up*. Comments on PRs outside `TARGET_PRS` are not fetched, but a
 fix attributed to a lower slice still lands there — that slice's branch gets
 checked out for it.
+
+**Stack mode — check the tip.** Before planning a fix, read the commented code
+at the tip of the stack (`git show origin/<tip branch>:<file>`). If a higher
+slice already fixed it, bucket it **Stale** with `fixed in #<M>`, `#<M>` being
+the slice whose diff changed that code. The user can still ask for the fix in
+the lower slice at the approval step, since each slice merges into main on its
+own. When two comments describe the same defect in the same code, plan one fix
+and mark the other row `same as #<row>`.
 
 **Apply `GUIDANCE` first.** Before classifying, turn each instruction in
 `GUIDANCE` into a pre-ruling: a bucket for a named comment, an approach for a
