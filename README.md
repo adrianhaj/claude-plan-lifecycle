@@ -109,8 +109,8 @@ stamping, reaping into `<plans-dir>/done/` — works identically.
 ## Triage profile
 
 `/pr-triage` grades impact, risk and decisions, and decides what it may run,
-from a profile. Without one it uses the generic defaults in the
-`## Default profile` section of `commands/pr-triage.md`. To tailor it, commit
+from a profile. Without one it uses the generic defaults in the `## Default
+profile` section of `references/pr-triage-brief.md`. To tailor it, commit
 `.claude/triage-profile.md` with any of the same names as `##` headings —
 Impact, Risk, CI never runs, Decisions, Test files, Setup, Commands, Do not
 run, Accepted here — and each replaces its default. The profile is read from
