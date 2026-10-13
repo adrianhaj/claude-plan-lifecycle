@@ -43,6 +43,7 @@ aggressive about writing plans without accumulating a graveyard.
 | `/pr-fix` | command | Fetch PR review comments (your own inline notes count as work items; `/review-stack` findings are verified like a reviewer's), plan fixes, implement and push; drafts replies for you to post (never posts to GitHub itself). Takes a PR or stack number plus optional free-text guidance for the fixes; on a stacked PR each fix lands in the slice that owns the code, then `/restack` rebases the slices above |
 | `/review-stack` | command | Run the built-in `/code-review` on every open PR of a stack, one review per slice (each scoped to that slice's diff against the slice below), launched together, from a checkout of the stack's top; then one verifier per slice checks each finding against the slice's code, the PR body, the ADRs and the slices above, and rejected findings appear only in the summary, grouped by slice. Takes a stack or PR number; review flags such as the effort level pass through. `--comment` posts each slice's confirmed and plausible findings as one review on its PR (nits prefixed `nit:`), every comment marked so `/pr-fix <stack>` verifies them as review findings rather than treating them as your own notes |
 | `/verify-findings` | command | Verify the findings of the latest `/code-review` in the session — local changes, a PR or a stacked PR — with `/review-stack`'s verifier: one agent checks each finding against the reviewed code, the PR body, the ADRs and CLAUDE.md files and, on a stacked PR, the slices above, then prints it as confirmed, plausible or rejected (with the reason). Read-only; `/review-stack` reads its verifier prompt from this command, so the rules live in one place |
+| `/pr-triage` | command | Re-prove a PR's claims locally, so you can trust a PR you cannot test yourself: re-runs the tests the PR names, checks that each fix's regression test fails with the fix reverted, and writes throwaway probe tests for commit claims no test covers. Writes one page per PR to `local/triage/<N>.md` — outcome, impact, risk and decisions, a claim ledger (reproduced, failed or not reproducible here), at most five proven findings, and what was and was not checked. Takes a stack number (every open slice) or a PR number (that slice only); one detached worktree and one agent per slice, in parallel; asks before running a PR someone else wrote. Never writes to GitHub. Repo-specific rules come from a committed triage profile (below) |
 | `/pr-fix-loop` | command | Loop `/pr-fix` autonomously: fix → push → wait for the automated review workflow's next review → repeat, until the review is clean or 5 rounds have run |
 | `/bug-hunt` | command | Autonomous red-green-refactor bug hunter with a reviewer-subagent gate |
 | `bin/stamp-plans` | script | Stamps `pr: <N>` into every plan file sharing a slug |
@@ -104,6 +105,19 @@ stamping, reaping into `<plans-dir>/done/` — works identically.
   post-creation hook, e.g. ccmanager). Never `git clean -fdx` a worktree mid-plan — it
   deletes the execution skill's progress ledger. <!-- committed variant: drop this bullet -->
 ```
+
+## Triage profile
+
+`/pr-triage` grades impact, risk and decisions, and decides what it may run,
+from a profile. Without one it uses the generic defaults in the
+`## Default profile` section of `commands/pr-triage.md`. To tailor it, commit
+`.claude/triage-profile.md` with any of the same names as `##` headings —
+Impact, Risk, CI never runs, Decisions, Test files, Setup, Commands, Do not
+run, Accepted here — and each replaces its default. The profile is read from
+the default branch, never from the PR under triage. List shared or heavy
+resources (say, an end-to-end suite on a shared VM) under Do not run: triage
+then reads the script to judge what a reported run covers instead of running
+it.
 
 ## Requirements & assumptions
 
