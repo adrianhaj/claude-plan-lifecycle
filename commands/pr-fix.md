@@ -91,7 +91,7 @@ Sort each remaining comment into one bucket:
 | **Suggestion** | Reviewer's preference — requires judgment | Evaluate, then either Actionable or Pushback |
 | **Nit** | Stylistic, low-stakes | Plan a code edit (cheap to address) |
 | **Pushback** | Suggestion is wrong for this codebase | Draft a reply explaining why |
-| **Stale** | Comment is on code that's since been changed | Skip, note it |
+| **Stale** | Comment is on code that's since been changed — in stack mode, also code a higher slice already fixed | Skip, note it |
 
 Severity prefixes from automated reviewers (`**blocking**:`, `nit:`,
 `suggestion:`) seed the bucket — `blocking` is Actionable unless verification
@@ -107,6 +107,14 @@ gives the commit; the owning slice is the one whose range
 never moves *up*. Comments on PRs outside `TARGET_PRS` are not fetched, but a
 fix attributed to a lower slice still lands there — that slice's branch gets
 checked out for it.
+
+**Stack mode — check the tip.** Before planning a fix, read the commented code
+at the tip of the stack (`git show origin/<tip branch>:<file>`). If a higher
+slice already fixed it, bucket it **Stale** with `fixed in #<M>`, `#<M>` being
+the slice whose diff changed that code. The user can still ask for the fix in
+the lower slice at the approval step, since each slice merges into main on its
+own. When two comments describe the same defect in the same code, plan one fix
+and mark the other row `same as #<row>`.
 
 **Apply `GUIDANCE` first.** Before classifying, turn each instruction in
 `GUIDANCE` into a pre-ruling: a bucket for a named comment, an approach for a
