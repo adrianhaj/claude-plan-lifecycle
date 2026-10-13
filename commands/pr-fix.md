@@ -72,6 +72,13 @@ moved).
 as **Self-note** (treated like Actionable, no reply drafted). Only skip the
 user's *replies* inside threads started by someone else.
 
+**Comments containing `<!-- plan-lifecycle:review-stack -->` are not
+self-notes**, though they sit under the user's account: `/review-stack
+--comment` posted them from an automated review. Treat each like an external
+reviewer's comment, with `review-stack` as the reviewer — verify it, then
+bucket it. The marked review's body holds the findings whose lines were off
+the diff; each of those is a comment too.
+
 ## Step 2 — Classify and plan
 
 Sort each remaining comment into one bucket:
@@ -79,7 +86,7 @@ Sort each remaining comment into one bucket:
 | Bucket | Meaning | Action |
 |---|---|---|
 | **Actionable** | Clear code change requested | Plan a code edit |
-| **Self-note** | The user's own inline note to self | Plan a code edit, no reply |
+| **Self-note** | The user's own inline note to self (no review-stack marker) | Plan a code edit, no reply |
 | **Question** | Reviewer asking for clarification, no code change | Draft a reply for the user |
 | **Suggestion** | Reviewer's preference — requires judgment | Evaluate, then either Actionable or Pushback |
 | **Nit** | Stylistic, low-stakes | Plan a code edit (cheap to address) |

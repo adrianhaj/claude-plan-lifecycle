@@ -1,5 +1,5 @@
 ---
-description: Review every open PR of a GitHub stack with /code-review — one review per slice, each scoped to that slice's own diff, launched together, then one summary grouped by slice. Accepts a stack number or any PR (an unstacked PR is a one-slice stack); review flags (effort level, --comment) pass through.
+description: Review every open PR of a GitHub stack with /code-review — one review per slice, each scoped to that slice's own diff, launched together, then one summary grouped by slice. Accepts a stack number or any PR (an unstacked PR is a one-slice stack); review flags (effort level, --max-findings) pass through, and --comment posts the findings on each PR, marked for /pr-fix.
 argument-hint: [stack or PR number — optional, auto-detects from current branch] [/code-review flags, e.g. high --comment]
 ---
 
@@ -7,8 +7,9 @@ argument-hint: [stack or PR number — optional, auto-detects from current branc
 
 Run `/code-review` on each open PR of a stack and report the findings slice by
 slice. This command reviews only — it never edits, commits or pushes. With
-`--comment`, each review posts its findings on its own PR, and
-`/plan-lifecycle:pr-fix <stack>` can then fix them in the slice that owns each.
+`--comment`, it posts each slice's findings on that slice's PR, marked so
+`/plan-lifecycle:pr-fix <stack>` treats them as review findings to verify (not
+your own notes) and fixes each in the slice that owns it.
 
 ## Resolving the stack
 
@@ -16,8 +17,9 @@ Resolve `OWNER/REPO` once: `gh repo view --json nameWithOwner -q .nameWithOwner`
 
 Split `$ARGUMENTS`: if the first token is a number it is the target; everything
 after it (or all of `$ARGUMENTS` when the first token is not a number) is
-`REVIEW_ARGS`, passed verbatim to every review (an effort level, `--comment`,
-`--max-findings <n>`).
+`REVIEW_ARGS`, passed verbatim to every review (an effort level,
+`--max-findings <n>`). `--comment` is taken out of `REVIEW_ARGS` and sets
+`POST`: the reviews do not post, Step 2 does.
 
 - **The target is a bare number** — try it as a **stack number** first:
   `gh api repos/OWNER/REPO/stacks/<N>`. Stacks draw from the same number
@@ -28,12 +30,13 @@ after it (or all of `$ARGUMENTS` when the first token is not a number) is
   current branch). If there is no PR, stop and tell the user. Read
   `gh api repos/OWNER/REPO/pulls/<PR> --jq .stack`:
   - `null` or `size == 1` → the PR is its own one-slice stack: `TARGET_PRS` is
-    that PR alone, `SIZE = 1`, with its `title`, `head.ref` and `base.ref` from
-    `gh pr view <PR> --json title,headRefName,baseRefName`. Skip to the header.
+    that PR alone, `SIZE = 1`, with its `title`, `head.ref`, `base.ref` and
+    head `sha` from `gh pr view <PR> --json title,headRefName,baseRefName,headRefOid`.
+    Skip to the header.
   - otherwise `STACK_NUM = .stack.number`.
 
 Fetch the stack once, with everything the summary needs:
-`gh api repos/OWNER/REPO/stacks/<STACK_NUM> --jq '.pull_requests[] | {number, state, title, head: .head.ref, base: .base.ref}'`.
+`gh api repos/OWNER/REPO/stacks/<STACK_NUM> --jq '.pull_requests[] | {number, state, title, head: .head.ref, base: .base.ref, sha: .head.sha}'`.
 `TARGET_PRS` = every PR with `state == open`, in stack order (bottom first);
 merged slices are skipped. Record each one's position in the full list as
 `P/SIZE`. If none is open, stop.
@@ -62,17 +65,56 @@ on code outside the diff may describe a later slice's version of it. Do not
 review the code yourself and do not launch a second review of a PR whose review
 is still running.
 
-The reviews run as background agents and each reports when it finishes. Wait
-until all `<K>` have reported before Step 2; if one fails, report it as failed
-in its slice's block rather than retrying.
+Each `Skill` call either returns its review's result at once ("completed
+(forked execution). Result: …") or starts the review as a background agent
+("launched … running in the background") that reports with a task notification
+when it finishes — one run can get both. A review is done when its result is
+in, whichever way it came; wait until all `<K>` are done before Step 2. If one
+fails, report it as failed in its slice's block rather than retrying.
 
-## Step 2 — Summary
+Each result ends with the review's findings as a JSON array — `file`, `line`,
+`summary`, `failure_scenario`, most severe first. Steps 2 and 3 read them from
+there.
+
+## Step 2 — Post the findings (`POST` only)
+
+Posting here, not in the reviews, is what lets every comment carry the marker
+`<!-- plan-lifecycle:review-stack -->` that `/pr-fix` keys on. For each slice
+with findings, post one review:
+
+- **Inline or in the body.** In `gh pr diff <N>`, a hunk header
+  `@@ -a,b +c,d @@` covers lines `c` to `c+d-1` of the new file. A finding
+  whose `file:line` falls in one becomes an inline comment; any other goes in
+  the review body — GitHub rejects the whole review if one comment is off the
+  diff.
+- **Post it** with `gh api repos/OWNER/REPO/pulls/<N>/reviews --method POST --input <file>`:
+
+  ```json
+  {
+    "commit_id": "<the slice's sha>",
+    "event": "COMMENT",
+    "body": "Automated review (`/review-stack <REVIEW_ARGS>`), slice <P>/<SIZE> of stack #<S>: <n> findings.\n\n<one entry per off-diff finding: **`path:line`** summary, then failure_scenario>\n\n<!-- plan-lifecycle:review-stack -->",
+    "comments": [
+      { "path": "<file>", "line": <line>, "side": "RIGHT",
+        "body": "**<summary>**\n\n<failure_scenario>\n\n<!-- plan-lifecycle:review-stack -->" }
+    ]
+  }
+  ```
+
+  `commit_id` is the head recorded before the reviews ran, so the lines match
+  the code that was reviewed even if the branch moved since.
+
+Post each slice once. If a post fails, show the error in that slice's block
+and carry on with the others.
+
+## Step 3 — Summary
 
 One block per slice, bottom-up:
 
 ```
 ## Slice <P>/<SIZE> — PR #<N> <title>
 <base> ← <head>
+Posted: <the review's html_url>        (POST only)
 
 | # | Where | Finding |
 |---|-------|---------|
@@ -85,10 +127,9 @@ review results, so do not repeat them unless the user asks.
 
 End with one line: `Stack #<S>: <X> findings across <K> PRs (#<a>: <n>, #<b>: <m>, …)`.
 
-When `REVIEW_ARGS` contained `--comment`, add: "Findings are posted on each PR
-under your account, so `/plan-lifecycle:pr-fix <S>` treats them as your own
-notes and plans an edit for each — drop the ones you disagree with at its
-approval step."
+With `POST`, add: "Each comment carries the review-stack marker, so
+`/plan-lifecycle:pr-fix <S>` verifies each finding like a reviewer's comment
+rather than treating it as your own note."
 
 When `REVIEW_ARGS` set an effort level or `--max-findings`, add: "`/code-review`
 keeps <those settings> for later runs too; type another level, or
