@@ -38,8 +38,8 @@ aggressive about writing plans without accumulating a graveyard.
 | `plan-frontmatter` | skill | Frontmatter spec, status ownership, and the stacked-PR slicing convention (`## PR N:` headings) |
 | `reap-plans` | skill | Wraps `bin/reap-plans` with run order and conventions |
 | `handoff-prompt` | skill | Generates a self-contained prompt to continue work in a fresh session |
-| `/execute-plan` | command | Drives a plan end-to-end in a worktree: execution skill → test/lint verify → draft PR → stamp. Discovered-but-deferred work lands in the PR body and a `<slug>-followups.md` stub. Plans with `## PR N:` slice headings become a stacked-PR chain |
-| `/restack` | command | After a stack's bottom PR squash-merges, or after a lower slice gained commits: cascade-rebase every branch whose parent moved, verify the tip, force-with-lease push behind a confirmation gate, retarget the new bottom PR. Discovers the stack from GitHub's native stack object; accepts a stack number |
+| `/execute-plan` | command | Drives a plan end-to-end in a worktree: execution skill → test/lint verify → draft PR → stamp. Discovered-but-deferred work lands in the PR body and a `<slug>-followups.md` stub. Plans with `## PR N:` slice headings become a stacked-PR chain, linked as a GitHub native stack via `gh stack link` when available |
+| `/restack` | command | After a stack's bottom PR squash-merges, after a lower slice gained commits, or when the bottom PR conflicts with or is behind trunk: cascade-rebase every branch whose parent moved, verify the tip, force-with-lease push behind a confirmation gate, retarget the new bottom PR. Discovers the stack from GitHub's native stack object; accepts a stack number |
 | `/pr-fix` | command | Fetch PR review comments (your own inline notes count as work items; `/review-stack` findings are verified like a reviewer's), plan fixes, implement and push; drafts replies for you to post (never posts to GitHub itself). Takes a PR or stack number plus optional free-text guidance for the fixes; on a stacked PR each fix lands in the slice that owns the code, then `/restack` rebases the slices above |
 | `/review-stack` | command | Run the built-in `/code-review` on every open PR of a stack, one review per slice (each scoped to that slice's diff against the slice below), launched together; then one summary grouped by slice. Takes a stack or PR number; review flags such as the effort level pass through. `--comment` posts each slice's findings as one review on its PR, every comment marked so `/pr-fix <stack>` verifies them as review findings rather than treating them as your own notes |
 | `/pr-fix-loop` | command | Loop `/pr-fix` autonomously: fix → push → wait for the automated review workflow's next review → repeat, until the review is clean or 5 rounds have run |
@@ -107,6 +107,7 @@ stamping, reaping into `<plans-dir>/done/` — works identically.
 ## Requirements & assumptions
 
 - **`gh`** authenticated (PR creation, merge-state checks).
+- **[`gh stack`](https://github.com/github/gh-stack)** extension (optional) — `/execute-plan` links stacked PRs into a GitHub native stack with `gh stack link`; without it (or without native stacks enabled) stacks fall back to hand-kept `## Stack` tables.
 - **bash ≥ 4** for `bin/reap-plans` (macOS ships 3.2 — `brew install bash`; the script exits with a
   clear message on older versions).
 - **[superpowers](https://github.com/obra/superpowers)** plugin — `/execute-plan` drives plans via
@@ -129,7 +130,8 @@ stamping, reaping into `<plans-dir>/done/` — works identically.
 Slice a big plan at *writing* time by grouping tasks under `## PR N: <conventional-commits title>`
 headings (the `plan-frontmatter` skill says when and where to cut — size, not layer count).
 `/execute-plan` then opens one draft PR per slice, each based on the previous, each independently
-green, and cross-links them with a `## Stack` table. Only the tip PR gets stamped into the plan —
+green, and links them as a GitHub native stack (`gh stack link`), falling back to a `## Stack`
+table when that isn't available. Only the tip PR gets stamped into the plan —
 under squash-merge cascade, tip-merged ⇔ stack-merged. GitHub's native stack object (the `stack`
 field on each PR, `repos/{owner}/{repo}/stacks/{N}`) is the source of truth for ordering; the
 table is documentation. After each bottom PR merges — or after `/pr-fix` pushes to a lower slice —

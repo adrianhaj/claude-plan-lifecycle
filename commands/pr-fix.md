@@ -168,7 +168,9 @@ ask the user.
 If the branch just pushed is not the tip of the stack (`POSITION < SIZE`, or
 any lower slice in the bottom-up loop), the branches above no longer contain
 their parent's tip. Invoke the `plan-lifecycle:restack` command via the
-`Skill` tool with `STACK_NUM` as its argument. It owns the cascade rebase, the
+`Skill` tool with `<STACK_NUM> --no-trunk` as its argument — `--no-trunk`
+keeps it from rebasing the bottom slice onto trunk, which would rewrite a
+slice below the fix. It owns the cascade rebase, the
 tip verification, the single force-with-lease gate, and the `## Stack` table
 housekeeping — do not reimplement any of it here. If it stops (genuine
 conflict, red tip, lease failure), stop too and relay its message; do not
