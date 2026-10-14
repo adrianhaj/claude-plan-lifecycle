@@ -1,5 +1,5 @@
 ---
-description: Restack a stacked-PR chain — after a bottom PR squash-merges, after a lower PR gained commits (e.g. from /pr-fix), or when the bottom PR conflicts with or is behind the default branch. Discovers the stack from GitHub's native stack object, cascade-rebases every branch whose parent moved, verifies the tip, then (after one confirmation) force-with-lease pushes and retargets the new bottom PR.
+description: Rebase a stacked-PR chain after a squash-merge, new commits on a lower PR, or drift from the default branch, then push and retarget after one confirmation.
 argument-hint: [stack number, PR number, or branch — optional anchor when the current branch is not part of the stack] [--no-trunk]
 ---
 

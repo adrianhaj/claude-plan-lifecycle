@@ -1,5 +1,5 @@
 ---
-description: Review every open PR of a GitHub stack with /code-review — one review per slice, each scoped to that slice's own diff, launched together; then each finding is verified against the slice's code, the PR body, ADRs and the top of the stack, and one summary is printed grouped by slice. Accepts a stack number or any PR (an unstacked PR is a one-slice stack); review flags (effort level, --max-findings) pass through, and --comment posts the confirmed and plausible findings on each PR, marked for /pr-fix.
+description: Review every open PR of a stack (or one PR) with /code-review, verify each finding, and print one summary by slice; --comment posts them for /pr-fix.
 argument-hint: [stack or PR number — optional, auto-detects from current branch] [/code-review flags, e.g. high --comment]
 ---
 
