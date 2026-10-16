@@ -1,14 +1,14 @@
 ---
-description: Verify the findings of the latest /code-review in this session — one agent checks each finding against the reviewed code, the PR body, the ADRs and CLAUDE.md files and, on a stacked PR, the slices above, by the same rules /review-stack uses — then print each as confirmed, plausible or rejected. Read-only.
+description: Verify the findings of the latest /code-review in this session — one agent checks each finding against the reviewed code, the PR body, the ADRs and CLAUDE.md files, the PR's commit messages and review threads and, on a stacked PR, the slices above, by the same rules /review-stack uses — then print each as confirmed, plausible or rejected. Read-only.
 ---
 
 # Verify Findings
 
 Check whether the findings of a `/code-review` hold up. `/code-review` takes
-no context beyond its target, so it cannot know what the PR body, the ADRs or
-the slices above already settle. This command hands its findings to one
-verifier agent and prints the verdicts. It never edits, commits, pushes or
-posts.
+no context beyond its target, so it cannot know what the PR body, the ADRs,
+the PR's commits and review threads or the slices above already settle. This
+command hands its findings to one verifier agent and prints the verdicts. It
+never edits, commits, pushes or posts.
 
 ## The findings
 
@@ -43,12 +43,21 @@ Fill the placeholders from the target's row:
   tree. `<DIFF>`: the command that shows the diff the review covered, e.g.
   `git diff HEAD`. `<DECISIONS>`: the repo's ADRs (e.g. `docs/adr/`) and
   CLAUDE.md files in the working tree, and the body of the branch's open PR if
-  it has one (`gh pr view --json body`).
+  it has one (`gh pr view --json body`). `<HISTORY>`: `git log <base sha>..HEAD`,
+  `<base sha>` being `git merge-base HEAD origin/<default branch>`
+  (`gh repo view --json defaultBranchRef -q .defaultBranchRef.name`), and, if
+  the branch has an open PR, its review threads
+  (`gh api repos/OWNER/REPO/pulls/<its number>/comments --paginate`).
 - **PR** — `<TARGET>`: PR #<N>. `<CODE>`: `git show <sha>:<path>`. `<DIFF>`:
   `gh pr diff <N>`. `<DECISIONS>`: the PR body (`gh pr view <N> --json body`),
   and the repo's ADRs (e.g. `docs/adr/`) and CLAUDE.md files at `<sha>`.
+  `<HISTORY>`: `git log <base sha>..<sha>`, `<base sha>` being
+  `git merge-base <sha> origin/<base>`, and the PR's review threads
+  (`gh api repos/OWNER/REPO/pulls/<N>/comments --paginate`).
 - **Stacked PR** — as **PR**, except `<TARGET>`: PR #<N> (slice <P>/<SIZE> of
-  stack #<S>), and the ADRs and CLAUDE.md files are read at `<top sha>`.
+  stack #<S>), the ADRs and CLAUDE.md files are read at `<top sha>`, and
+  `<base sha>` is the head sha of the open slice below — as **PR** for the
+  lowest open slice.
 
 Lines marked `(stack)` go in only for a stacked PR, without the mark.
 
@@ -58,10 +67,14 @@ not edit files, switch branches or post anything.
 
 - The reviewed code: <CODE>. Its diff: <DIFF>.
 - Documented decisions: <DECISIONS>.
+- The PR's history: <HISTORY>. The commit messages and the review threads,
+  with their replies — earlier automated rounds and the author's "Fixed in …"
+  answers among them — often record why the code is the way it is.
 - (stack) The top of the stack: `git show <top sha>:<path>`. The slices above
   this one: <#M (<head>), …, or "none">.
 
-For each finding, in order, give a verdict:
+For each finding, in order, read the documented decisions and the history
+before you give CONFIRMED or PLAUSIBLE, then give a verdict:
 - CONFIRMED: the failure scenario follows from the reviewed code. Quote the
   line.
 - PLAUSIBLE: the mechanism is real but the trigger is uncertain (timing,
@@ -71,6 +84,10 @@ For each finding, in order, give a verdict:
   - the code doesn't do what the finding says (quote the line);
   - it is guarded in the reviewed code (cite the guard);
   - the PR body, an ADR or a CLAUDE.md records it as a decision (quote it);
+  - a commit message or an earlier review reply on this PR records the
+    behaviour as deliberate (quote it, with the sha or the comment's URL).
+    A reply is a claim, not the code: it counts only if the reviewed code
+    still matches it, and if a later commit reverses it, the commit wins;
   - (stack) a slice above already fixes it or rules it out ("fixed in #<M>",
     quote the line at the top).
 and a kind: `bug` (wrong behaviour) or `nit` (cleanup, naming, duplication,

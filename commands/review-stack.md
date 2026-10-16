@@ -94,15 +94,18 @@ Each result ends with the review's findings as a JSON array — `file`, `line`,
 ## Step 2 — Verify the findings
 
 `/code-review` runs no verification at these levels and takes no context
-beyond its target, so it cannot know what the PR body, the ADRs or the slices
-above already settle. Read the verifier prompt in the `## Verifier prompt`
-section of `${CLAUDE_PLUGIN_ROOT}/commands/verify-findings.md` — the one
+beyond its target, so it cannot know what the PR body, the ADRs, the PR's
+commits and review threads or the slices above already settle. Read the
+verifier prompt in the `## Verifier prompt` section of
+`${CLAUDE_PLUGIN_ROOT}/commands/verify-findings.md` — the one
 `/plan-lifecycle:verify-findings` uses for a single review. In a single
 message, launch one `general-purpose` agent through the `Agent` tool per slice
 with findings, with that prompt filled in from its **Stacked PR** row (the
 **PR** row when `SIZE = 1`): `<sha>` is the slice's head, `<top sha>` the
-top's, and the findings are the review's JSON array. Every sha is in this
-checkout, so nothing needs fetching.
+top's, `<base sha>` the head of the open slice below it in `TARGET_PRS` (for
+the first one, `git merge-base <sha> origin/<its base>`), and the findings are
+the review's JSON array. Every sha is in this checkout, so nothing needs
+fetching.
 
 Wait for all of them. A slice whose verifier fails or returns an array of the
 wrong length is **unverified**: say so in its block, and Step 3 does not post
