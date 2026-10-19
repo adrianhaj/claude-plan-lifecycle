@@ -123,6 +123,13 @@ Print one line naming the choice. Then **invoke the chosen skill** via the `Skil
 > - follow-on work the plan itself defers (a "follow-ups" / "future work" list, or a step telling you to record follow-ups in the plan file — the plan file must not be edited, so ledger them instead): `Plan: observation: <one-liner>`
 > - a Minor finding from the final whole-branch review that is not fixed: `Final: minor (deferred): <one-liner>`
 >
+> When you stop to ask your human partner and they decide, ledger the decision as `Ruling (user): <decision> — <the question it answered>`. A question they leave open is a follow-up: `Task <N>: observation: open question — <question>`.
+>
+> When a ruling — yours or theirs — changes what an ADR states (ADRs live in the repo's ADR directory, e.g. `docs/adr/`, or wherever its CLAUDE.md says; no ADR directory → skip this):
+>
+> - **The plan creates or amends that ADR** (a file not yet on the default branch): amend it in the same task, so it merges matching the code, and end the ruling's ledger line with `— ADR-<NNNN> updated`.
+> - **The ADR is already on the default branch and the plan does not touch it:** do not edit it — changing a settled ADR is a planning decision. End the ruling's ledger line with `— ADR impact: ADR-<NNNN> <how the ruling bears on it>`, and ledger the same as an observation.
+>
 > When you reach the point where you would invoke `superpowers:finishing-a-development-branch`, do NOT — return control to `/execute-plan`, which opens the PR. Return your "Rulings I made" list verbatim in your final message; if you made no rulings, say so. Then return a "Follow-ups" list built from every `minor (deferred)`, `observation`, and real-but-deferred `parked` ledger line, curated: merge lines that describe the same issue into one item; drop items a later fix closed; where a later review showed a line's description is wrong, correct it and mark it `(corrected: <what changed>)`. Each item keeps its source tags (e.g. `Task 3, Final`). If there are none, say so.
 
 Both skills end by invoking `finishing-a-development-branch`, which presents merge/PR/keep options that collide with Steps 5–7. The instruction above pre-empts that. Capture the returned rulings list as `RULINGS` and the follow-ups list as `FOLLOWUPS` (each empty if none — `executing-plans` normally returns neither). Follow-ups are discovered work the run did not do; without this capture they die with the skill's workspace.
@@ -180,8 +187,10 @@ Use plain `git commit` — no `--no-verify`. Follow the repo's commit-message co
    ## Rulings
 
    <one bullet per entry in RULINGS — what was decided, why, and what it
-   costs if wrong. These are decisions the execution skill made on the
-   author's behalf; the PR is where they become reviewable. Omit the whole
+   costs if wrong. These are decisions made during execution, by the
+   execution skill on the author's behalf or by the author when asked
+   (mark those `(user)`); the PR is where they become reviewable. Keep a
+   ruling's `ADR-NNNN updated` or `ADR impact: …` suffix. Omit the whole
    section when RULINGS is empty.>
 
    ## Follow-ups
@@ -270,6 +279,7 @@ $TEST_CMD: passed
 $LINT_CMD: passed
 Plan stamped with PR number.
 Follow-ups: <stub path> (<n> items)   # or "Follow-ups: none"
+ADR impact: ADR-<NNNN> <how>          # one line per flagged ruling; omit when none
 ```
 
 That's the entire output. No JSON sidecar, no aggregation.
@@ -472,6 +482,7 @@ Stack opened (<M> draft PRs, native stack #<STACK_NUM>):   # or "no native stack
 ...
 Plan stamped with tip PR #<PR_NUM[M]>.
 Follow-ups: <stub path> (<n> items)   # or "Follow-ups: none"
+ADR impact: ADR-<NNNN> <how>          # one line per flagged ruling; omit when none
 Merging is a cascade: after each squash-merge, run /restack in this
 worktree — it rebases the surviving branches, verifies the tip, and
 retargets the next PR to `$DEFAULT_BRANCH`.
