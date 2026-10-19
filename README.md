@@ -60,15 +60,33 @@ aggressive about writing plans without accumulating a graveyard.
 /plugin install plan-lifecycle@claude-plan-lifecycle
 ```
 
-Put the scripts on your PATH — symlink rather than copy, so they track the checkout and
-`-V` can tell which build they are:
+Put the scripts on your PATH with small wrappers that run the installed plugin's copy — they
+follow `/plugin` updates without relinking (needs `python3` to read `installed_plugins.json`):
 
 ```bash
-ln -s "$PWD"/bin/* ~/.local/bin/
+mkdir -p ~/.local/bin
+for name in reap-plans stamp-plans link-plans; do
+  cat > ~/.local/bin/$name <<'EOF'
+#!/usr/bin/env bash
+# Runs the installed plan-lifecycle plugin's copy of this script.
+set -euo pipefail
+name="$(basename "$0")"
+root="$(python3 -c 'import json, os
+p = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR", os.path.expanduser("~/.claude")), "plugins", "installed_plugins.json")
+print(json.load(open(p))["plugins"]["plan-lifecycle@claude-plan-lifecycle"][0]["installPath"])' 2>/dev/null)" || {
+  echo "$name: plan-lifecycle plugin not found in installed_plugins.json" >&2; exit 1; }
+exec "$root/bin/$name" "$@"
+EOF
+  chmod +x ~/.local/bin/$name
+done
 ```
 
-Each script answers `-V` with the plugin build it runs (the commit's 12-character sha, the
-same id as the install dir under `~/.claude/plugins/cache/`), or `unknown` for a copy.
+Working on the plugin itself? Link a checkout instead: `ln -s "$PWD"/bin/* ~/.local/bin/`.
+
+Each script answers `-V` with the build it runs: the commit's 12-character sha — the
+install dir name under `~/.claude/plugins/cache/`, or a checkout's `HEAD`. Through the
+wrappers it should match the id `installed_plugins.json` lists under
+`plan-lifecycle@claude-plan-lifecycle`; if it doesn't, you are running a stale copy.
 
 ## Where plans live — the plans-dir convention
 
