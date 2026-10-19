@@ -60,11 +60,15 @@ aggressive about writing plans without accumulating a graveyard.
 /plugin install plan-lifecycle@claude-plan-lifecycle
 ```
 
-Put the scripts on your PATH:
+Put the scripts on your PATH — symlink rather than copy, so they track the checkout and
+`-V` can tell which build they are:
 
 ```bash
-cp bin/* ~/.local/bin/
+ln -s "$PWD"/bin/* ~/.local/bin/
 ```
+
+Each script answers `-V` with the plugin build it runs (the commit's 12-character sha, the
+same id as the install dir under `~/.claude/plugins/cache/`), or `unknown` for a copy.
 
 ## Where plans live — the plans-dir convention
 

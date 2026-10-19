@@ -22,27 +22,47 @@
 #   stamp-plans -s SLUG <pr-number>
 #   stamp-plans -n <pr-number>              # dry run
 #   stamp-plans -d DIR <pr-number>          # override the plans dir
+#   stamp-plans -V                          # print the plugin build (commit sha12) and exit
 #
 # Files without frontmatter are ignored. A member already stamped with a
 # DIFFERENT PR is overwritten with a warning.
 
 set -euo pipefail
 
+# plugin_build — the plugin build this script belongs to: its install dir under
+# ~/.claude/plugins/cache (named by the commit sha12), else the HEAD of the
+# plugin checkout it lives in, else "unknown". Follows symlinks, so a
+# ~/.local/bin link reports the copy it points at.
+plugin_build() {
+  local src root
+  src="$(realpath "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+  root="$(dirname "$(dirname "$src")")"
+  case "$root" in
+    */plugins/cache/*/*/*) basename "$root"; return ;;
+  esac
+  if [ -f "$root/.claude-plugin/plugin.json" ] &&
+    git -C "$root" rev-parse --short=12 HEAD 2>/dev/null; then
+    return
+  fi
+  echo unknown
+}
+
 dry_run=0
 plans_dir=""
 slug=""
 from_file=""
 
-while getopts "ns:f:d:h" opt; do
+while getopts "ns:f:d:hV" opt; do
   case "$opt" in
     n) dry_run=1 ;;
     s) slug="$OPTARG" ;;
     f) from_file="$OPTARG" ;;
     d) plans_dir="$OPTARG" ;;
     h)
-      sed -n '3,27p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '3,28p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
+    V) plugin_build; exit 0 ;;
     *) echo "stamp-plans: unknown option" >&2; exit 2 ;;
   esac
 done

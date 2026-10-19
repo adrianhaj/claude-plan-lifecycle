@@ -16,12 +16,31 @@
 #   reap-plans            # run from a repo root (uses the repo's plans dir)
 #   reap-plans -n         # dry run: show what would move, change nothing
 #   reap-plans -d DIR     # override the plans dir
+#   reap-plans -V         # print the plugin build (commit sha12) and exit
 #
 # The plans dir resolves -d > PLANS_DIR > `git config plans.dir` > local/plans.
 #
 # Requires: gh (authenticated), git, bash >= 4 (associative arrays).
 
 set -euo pipefail
+
+# plugin_build — the plugin build this script belongs to: its install dir under
+# ~/.claude/plugins/cache (named by the commit sha12), else the HEAD of the
+# plugin checkout it lives in, else "unknown". Follows symlinks, so a
+# ~/.local/bin link reports the copy it points at.
+plugin_build() {
+  local src root
+  src="$(realpath "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+  root="$(dirname "$(dirname "$src")")"
+  case "$root" in
+    */plugins/cache/*/*/*) basename "$root"; return ;;
+  esac
+  if [ -f "$root/.claude-plugin/plugin.json" ] &&
+    git -C "$root" rev-parse --short=12 HEAD 2>/dev/null; then
+    return
+  fi
+  echo unknown
+}
 
 if (( BASH_VERSINFO[0] < 4 )); then
   echo "reap-plans: requires bash >= 4 (macOS ships 3.2 — brew install bash)" >&2
@@ -31,14 +50,15 @@ fi
 dry_run=0
 plans_dir=""
 
-while getopts "nd:h" opt; do
+while getopts "nd:hV" opt; do
   case "$opt" in
     n) dry_run=1 ;;
     d) plans_dir="$OPTARG" ;;
     h)
-      sed -n '3,22p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '3,23p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
+    V) plugin_build; exit 0 ;;
     *) echo "reap-plans: unknown option" >&2; exit 2 ;;
   esac
 done
