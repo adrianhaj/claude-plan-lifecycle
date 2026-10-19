@@ -196,7 +196,9 @@ recipe."
    ```
    Every commit should map ≈unchanged (`=` or `!` with only context drift).
    Flag any commit that appears added/dropped in the summary.
-2. **Gate.** Ask via `AskUserQuestion` (header "Push", multi-select
+2. **Gate.** Under `/pr-fix-loop`, don't ask — decide by its rule: push
+   all when the range-diff shows no added or dropped commits, otherwise
+   abort. Otherwise ask via `AskUserQuestion` (header "Push", multi-select
    disabled): "Force-with-lease push <S> rebased branch(es)?" Options:
    "Push all (Recommended)" / "Abort (keep local rebase)". Anything but
    "Push all" → stop: "Aborted — local branches keep the rebase; remote
@@ -240,7 +242,9 @@ recipe."
 - **Worktree only; never on the default branch; clean tree required.**
 - **`--force-with-lease` only** — never bare `--force`; only after the Step 5
   gate; only on the stack's own branches. A lease failure is a full
-  stop, never a retry.
+  stop, never a retry. The gate is a human confirmation, except under
+  `/pr-fix-loop`, where Step 5 decides by that command's rule (no added or
+  dropped commits in the range-diff).
 - **Nothing remote changes before Step 5.** Steps 1–4 are read-only towards
   origin and GitHub.
 - **Halt-on-red / halt-on-divergence / halt-on-genuine-conflict /
