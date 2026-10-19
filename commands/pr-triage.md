@@ -165,4 +165,5 @@ Stack #<S>: <F> findings across <K> PRs; <X> claims failed, <Y> not reproducible
 Leave out `Handed up:` when there is nothing to list. For a single PR, use
 its header as the first line and drop the last one. If
 `git check-ignore -q local/triage/<N>.md` fails, add: "local/triage/ is not
-gitignored; add `local/` to .gitignore to keep reports out of commits."
+gitignored; add `local` (no trailing slash, so a `local` symlink matches too)
+to .gitignore to keep reports out of commits."

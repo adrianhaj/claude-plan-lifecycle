@@ -46,9 +46,9 @@ the turn.
    `main`/`master`), stop: "Worktree is on a protected branch. Check out a
    stack branch first."
 4. **Clean tree (tracked files).** `git status --porcelain` — ignore `??`
-   (untracked) lines: when `local/` is symlinked into the worktree, `?? local` is always present
-   (the symlink isn't matched by the `local/` gitignore entry) and untracked
-   files don't participate in a rebase. If any NON-`??` line exists, stop:
+   (untracked) lines: `link-plans` makes `local` a symlink in the worktree,
+   which a `local/` gitignore entry does not match, and untracked files don't
+   participate in a rebase. If any NON-`??` line exists, stop:
    "Worktree has uncommitted changes to tracked files. Commit or stash them
    first — restacking with a dirty tree is not supported."
 5. **Fetch.** `git fetch origin --prune` (prune so branches GitHub

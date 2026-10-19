@@ -39,7 +39,7 @@ aggressive about writing plans without accumulating a graveyard.
 | `reap-plans` | skill | Wraps `bin/reap-plans` with run order and conventions |
 | `handoff-prompt` | skill | Generates a self-contained prompt to continue work in a fresh session |
 | `/execute-plan` | command | Drives a plan end-to-end in a worktree: execution skill → test/lint verify → draft PR → stamp. Discovered-but-deferred work lands in the PR body and a `<slug>-followups.md` stub. Plans with `## PR N:` slice headings become a stacked-PR chain, linked as a GitHub native stack via `gh stack link` when available |
-| `/restack` | command | After a stack's bottom PR squash-merges, after a lower slice gained commits, or when the bottom PR conflicts with or is behind trunk: cascade-rebase every branch whose parent moved, verify the tip, force-with-lease push behind a confirmation gate, retarget the new bottom PR. Discovers the stack from GitHub's native stack object; accepts a stack number |
+| `/restack` | command | After a stack's bottom PR squash-merges, after a lower slice gained commits, or when the bottom PR conflicts with or is behind trunk: cascade-rebase every branch whose parent moved, verify the tip, force-with-lease push behind a confirmation gate, retarget the new bottom PR. Discovers the stack from GitHub's native stack object, falling back to the PRs' `## Stack` table or base-branch chain; accepts a stack number |
 | `/pr-fix` | command | Fetch PR review comments (your own inline notes count as work items; `/review-stack` findings are verified like a reviewer's), plan fixes, implement and push; drafts replies for you to post (never posts to GitHub itself). Takes a PR or stack number plus optional free-text guidance for the fixes; on a stacked PR each fix lands in the slice that owns the code, then `/restack` rebases the slices above |
 | `/review-stack` | command | Run the built-in `/code-review` on every open PR of a stack, one review per slice (each scoped to that slice's diff against the slice below), launched together, from a checkout of the stack's top; then one verifier per slice checks each finding against the slice's code, the PR body, the ADRs, the slice's commit messages and review threads and the slices above, and rejected findings appear only in the summary, grouped by slice. Takes a stack or PR number; review flags such as the effort level pass through. `--comment` posts each slice's confirmed and plausible findings as one review on its PR (nits prefixed `nit:`), every comment marked so `/pr-fix <stack>` verifies them as review findings rather than treating them as your own notes |
 | `/verify-findings` | command | Verify the findings of the latest `/code-review` in the session — local changes, a PR or a stacked PR — with `/review-stack`'s verifier: one agent checks each finding against the reviewed code, the PR body, the ADRs and CLAUDE.md files, the commit messages and review threads and, on a stacked PR, the slices above, then prints it as confirmed, plausible or rejected (with the reason). Read-only; `/review-stack` reads its verifier prompt from this command, so the rules live in one place |
@@ -74,8 +74,10 @@ first match wins:
 3. `git config plans.dir` — per-clone and persistent; set it once per repo
 4. the default: `local/plans/`
 
-The default is a personal scratch area: put `local/` in the repo's `.gitignore` and plans
-never hit the remote.
+The default is a personal scratch area: put `local` in the repo's `.gitignore` and plans
+never hit the remote. Write it without the trailing slash: `local/` matches only a
+directory, and in a worktree `link-plans` makes `local` a symlink, which `local/` does not
+ignore.
 
 Prefer plans **committed to git**? Point the convention at a tracked directory:
 
@@ -95,8 +97,8 @@ stamping, reaping into `<plans-dir>/done/` — works identically.
 - Plans live in `local/plans/` (gitignored scratch). <!-- committed variant: `docs/plans/` + `git config plans.dir docs/plans` -->
 - **Frontmatter:** every plan/design doc carries YAML frontmatter — invoke the
   `plan-frontmatter` skill whenever writing one.
-- **Stamp on PR open:** as soon as a PR is opened, run `stamp-plans <pr-number>`.
-  `/execute-plan` does this itself.
+- **Stamp on PR open:** as soon as a PR is opened, run
+  `stamp-plans -f <plan-file> <pr-number>`. `/execute-plan` does this itself.
 - **Durable record lives elsewhere.** A plan is scaffolding — intent and decisions
   belong in the PR description or a committed ADR, never the plans dir.
 - **Reap after merge:** invoke the `reap-plans` skill.
@@ -148,8 +150,8 @@ headings (the `plan-frontmatter` skill says when and where to cut — size, not 
 green, and links them as a GitHub native stack (`gh stack link`), falling back to a `## Stack`
 table when that isn't available. Only the tip PR gets stamped into the plan —
 under squash-merge cascade, tip-merged ⇔ stack-merged. GitHub's native stack object (the `stack`
-field on each PR, `repos/{owner}/{repo}/stacks/{N}`) is the source of truth for ordering; the
-table is documentation. After each bottom PR merges — or after `/pr-fix` pushes to a lower slice —
+field on each PR, `repos/{owner}/{repo}/stacks/{N}`) is the source of truth for ordering; without
+one, the commands read the table instead. After each bottom PR merges — or after `/pr-fix` pushes to a lower slice —
 `/restack` rebases every branch whose parent moved and retargets the new bottom PR.
 
 ## License

@@ -54,7 +54,7 @@ pr:
 | Value | You (Claude) set it | When |
 |---|---|---|
 | `draft` | yes | at plan creation |
-| `in-progress` | yes | when you start executing the plan |
+| `in-progress` | yes, optional | by hand when you start executing the plan — `/execute-plan` never sets it, since it edits nothing in the plan but `pr:` |
 | `merged` | **NO — never write this** | `reap-plans` owns it; it stamps `merged` just before archiving |
 | `abandoned` | yes | only when the user says the work is dropped or superseded |
 
@@ -73,10 +73,14 @@ Don't hand-edit the frontmatter — run the dedicated `stamp-plans` script
 (this plugin ships it in `bin/`; it must be on PATH):
 
 ```bash
-stamp-plans -f <any-file-of-the-group.md> <pr-number>   # slug read from the file
-stamp-plans <pr-number>                                 # slug derived from current branch
+stamp-plans -f <any-file-of-the-group.md> <pr-number>   # slug read from the file — use this
+stamp-plans <pr-number>                                 # slug = branch name after the first '/'
 stamp-plans -n ...                                      # dry run
 ```
+
+The bare form only matches a plan whose `slug:` equals the branch name after its
+first `/` — never on a stacked slice branch (`alice/odm-2-api`), and not when you
+picked a different slug. Prefer `-f`.
 
 It stamps `pr: <N>` as a bare YAML integer into every frontmatter-bearing
 member of the slug group and errors if it finds none.
