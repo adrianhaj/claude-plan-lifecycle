@@ -34,25 +34,19 @@ Resolve once:
 
 `$ARGUMENTS` is empty or one number.
 
-- **A number** — try it as a stack first: `gh api repos/OWNER/REPO/stacks/<N>`.
-  Stacks share the number sequence of issues and PRs, so a number is a
-  stack or a PR, never both.
-  - 200: a stack. `TARGETS` = every PR in it with `state == open`, bottom
-    first. None open → stop.
-  - 404: a PR. `TARGETS` = that PR alone.
-  - Anything else: stop and show the error.
-- **Empty** — `gh pr view --json number -q .number` for the current branch.
-  No PR → stop: "Pass a stack or PR number."
+Resolve the target per `${CLAUDE_PLUGIN_ROOT}/references/stack-discovery.md`,
+with `ANCHOR` = the number, or empty for the current branch's PR (no PR →
+stop: "Pass a stack or PR number.").
 
-For a PR target, `gh api repos/OWNER/REPO/pulls/<N> --jq .stack` says
-whether it is stacked (`null` or `size == 1` → not stacked). A stacked PR is
-triaged alone; the rest of its stack is context.
+- **The number was a stack** → `TARGETS` = every open PR in `SLICES`, bottom
+  first. None open → stop.
+- **Otherwise** `TARGETS` = the anchor PR alone. When `STACKED`, the rest of
+  its stack is context.
 
-When stacked, read the stack once:
-`gh api repos/OWNER/REPO/stacks/<S> --jq '.pull_requests[] | {number, state, title, sha: .head.sha}'`.
-This is the **stack table**. Record each target's position `P/SIZE`. `TOP`
-is the head sha of the stack's last open PR; for an unstacked PR it is its
-own head.
+When `STACKED`, `SLICES` is the **stack table**. Record each target's
+position `P/SIZE`. `TOP` is the head sha of the stack's last open PR; for an
+unstacked PR it is its own head. A stack with no native number is written
+`stack of #<bottom>` wherever `Stack #<S>` appears below.
 
 For each target read
 `gh pr view <N> --json number,title,author,isCrossRepository,headRefOid,baseRefName`.
@@ -171,4 +165,5 @@ Stack #<S>: <F> findings across <K> PRs; <X> claims failed, <Y> not reproducible
 Leave out `Handed up:` when there is nothing to list. For a single PR, use
 its header as the first line and drop the last one. If
 `git check-ignore -q local/triage/<N>.md` fails, add: "local/triage/ is not
-gitignored; add `local/` to .gitignore to keep reports out of commits."
+gitignored; add `local` (no trailing slash, so a `local` symlink matches too)
+to .gitignore to keep reports out of commits."

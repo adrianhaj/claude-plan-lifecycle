@@ -41,7 +41,7 @@ Run each check in order. On any failure, **stop**: print the message and end the
    ```bash
    git status --porcelain
    ```
-   If non-empty, warn ("Worktree has uncommitted changes — the execution skill's implementers will likely commit them as part of execution") but continue.
+   Ignore `?? local` (the plans symlink `link-plans` creates). If anything else is listed, warn ("Worktree has uncommitted changes — the execution skill's implementers will likely commit them as part of execution") but continue.
 
 5. **Execution skills available?** This command drives plans via the superpowers plugin. If neither `superpowers:executing-plans` nor `superpowers:subagent-driven-development` appears in the available-skills list, stop: "The superpowers plugin is required (https://github.com/obra/superpowers). Install it and re-run."
 
@@ -49,20 +49,30 @@ Run each check in order. On any failure, **stop**: print the message and end the
 
 This command executes against an **implementation plan**, not a design spec (suffix `-design.md`). The two are paired: the design captures rationale and decisions; the implementation captures the TDD-shaped steps the execution skill needs to drive. Implementation plans carry no fixed suffix — in practice they end in `-plan.md`, `-implementation.md`, or have no suffix at all. The only reliable discriminator is: same slug, not `-design.md`.
 
+Resolve the plans dir first — both paths below need it (Step 7a writes the
+follow-ups stub there). Per the plans-dir convention (`PLANS_DIR` env, else
+`git config plans.dir`, else `local/plans/`), through any symlink: in
+shared-plans worktree setups `local/` is a **symlink** to the main repo's
+`local/`, and `find` does not descend into it.
+
+```bash
+PLANS_DIR="${PLANS_DIR:-$(git config --get plans.dir 2>/dev/null || echo local/plans)}"
+PLANS_DIR="$(realpath "$PLANS_DIR" 2>/dev/null)"
+```
+
+Always operate on `$PLANS_DIR` (the realpath), never the raw configured path.
+
 If `$ARGUMENTS` is non-empty, treat the first token as the plan path (absolute or relative to cwd). Require it to end in `.md` and exist. Resolve to absolute via `realpath` and skip to Step 3. (No suffix check — the user passed it explicitly, trust them.)
 
 Otherwise auto-detect from the current branch:
 
 1. Get the current branch name from Step 1.3.
 2. Strip the branch prefix segment (everything up to and including the first `/`) to produce a slug. Example: `alice/replica-drift` → `replica-drift`.
-3. Resolve the plans dir (the plans-dir convention: `PLANS_DIR` env, else `git config plans.dir`, else `local/plans/`) through any symlink first. In shared-plans worktree setups `local/` is a **symlink** to the main repo's `local/`, and not every tool follows symlinks (`find` and a bare shell glob may both miss files under it). Compute the real directory once and glob inside the resolved path:
+3. List the candidates:
    ```bash
-   PLANS_DIR="${PLANS_DIR:-$(git config --get plans.dir 2>/dev/null || echo local/plans)}"
-   PLANS_DIR="$(realpath "$PLANS_DIR" 2>/dev/null)"
    ls -1 "$PLANS_DIR"/*"${slug}"*.md 2>/dev/null
    ```
-   Always operate on `$PLANS_DIR` (the realpath), never the raw configured path, for every glob in this step.
-4. Partition the matches: files ending in `-design.md` are **designs**; every other match is an **implementation candidate** (whatever its suffix — `-plan.md`, `-implementation.md`, or none). Then decide:
+4. Partition the matches: files ending in `-design.md` are **designs**; files ending in `-followups.md` (Step 7a's stubs) are skipped; every other match is an **implementation candidate** (whatever its suffix — `-plan.md`, `-implementation.md`, or none). Then decide:
    - **Exactly one implementation candidate** → use it.
    - **Multiple implementation candidates** → list them via `AskUserQuestion` (header "Plan", multi-select disabled). If the user picks nothing, stop.
    - **No implementation candidate, but ≥1 design** → stop with: "Found design for `<slug>` but no implementation plan. Run brainstorming → writing-plans to create one first."
@@ -130,7 +140,7 @@ Print one line naming the choice. Then **invoke the chosen skill** via the `Skil
 > - **An ADR file this plan's diff creates or modifies:** amend it in the same task, so it merges matching the code, and end the ruling's ledger line with `— ADR-<NNNN> updated`.
 > - **Any other ADR:** do not edit it — changing a settled ADR is a planning decision. End the ruling's ledger line with `— ADR impact: ADR-<NNNN> <how the ruling bears on it>`. Ledger nothing else for it; the ruling carries it.
 >
-> When you reach the point where you would invoke `superpowers:finishing-a-development-branch`, do NOT — return control to `/execute-plan`, which opens the PR. Return your "Rulings I made" list verbatim in your final message; if you made no rulings, say so. Then return a "Follow-ups" list built from every `minor (deferred)`, `observation`, and real-but-deferred `parked` ledger line, curated: merge lines that describe the same issue into one item; drop items a later fix closed; where a later review showed a line's description is wrong, correct it and mark it `(corrected: <what changed>)`. Each item keeps its source tags (e.g. `Task 3, Final`). If there are none, say so.
+> In your Finish step, where you collect "Rulings I made" before deleting anything, also build a "Follow-ups" list from the ledger — before the workspace is deleted, never from memory. Then, when you reach the point where you would invoke `superpowers:finishing-a-development-branch`, do NOT — return control to `/execute-plan`, which opens the PR. Return your "Rulings I made" list verbatim in your final message; if you made no rulings, say so. Then return the "Follow-ups" list, built from every `minor (deferred)`, `observation`, and real-but-deferred `parked` ledger line, curated: merge lines that describe the same issue into one item; drop items a later fix closed; where a later review showed a line's description is wrong, correct it and mark it `(corrected: <what changed>)`. Each item keeps its source tags (e.g. `Task 3, Final`). If there are none, say so.
 
 Both skills end by invoking `finishing-a-development-branch`, which presents merge/PR/keep options that collide with Steps 5–7. The instruction above pre-empts that. Capture the returned rulings list as `RULINGS` and the follow-ups list as `FOLLOWUPS` (each empty if none — `executing-plans` normally returns neither), and set `ADR_IMPACTS` = the `RULINGS` entries ending in `— ADR impact: …`. Follow-ups are discovered work the run did not do; without this capture they die with the skill's workspace.
 
@@ -152,13 +162,17 @@ If a resolved command does not exist (e.g. `make: *** No rule to make target` on
 
 ## Step 5 — Commit anything still staged
 
-If `git status --porcelain` is empty, skip this step — the execution skill already committed everything.
+If `git status --porcelain` shows nothing but `?? local`, skip this step — the execution skill already committed everything.
 
-Otherwise stage and commit pending changes with a message derived from `PLAN_TITLE`:
+Otherwise stage and commit pending changes, never the `local` plans symlink
+(a `local/` gitignore entry does not match a symlink, so `git add -A` would
+commit it and push a personal path). The subject is the Conventional-Commits
+title Step 6 derives for the PR (derive it now) — a prose `PLAN_TITLE` fails
+commit-message hooks, and `--no-verify` is not an option:
 
 ```bash
-git add -A
-git commit -m "<PLAN_TITLE>"
+git add -A -- . ':(exclude)local'
+git commit -m "<PR_TITLE>"
 ```
 
 Use plain `git commit` — no `--no-verify`. Follow the repo's commit-message conventions.
@@ -227,7 +241,7 @@ Per the plan-lifecycle convention: every plans file of the effort must carry the
    ```bash
    stamp-plans -f "$PLAN_PATH" <PR_NUM>
    ```
-   It reads the slug from `PLAN_PATH`, finds every sibling file with that slug, and sets `pr: <PR_NUM>` (bare YAML integer — no quotes, no `#`) in each one's frontmatter. It reports each stamped file; a non-zero exit means nothing was stamped — surface the error, don't hand-edit around it. Do **not** touch `status` — it stays `in-progress` (this command opens a *draft* PR; `merged` is owned by `reap-plans`). Do not add a body `PR: #<N>` line — frontmatter is authoritative.
+   It reads the slug from `PLAN_PATH`, finds every sibling file with that slug, and sets `pr: <PR_NUM>` (bare YAML integer — no quotes, no `#`) in each one's frontmatter. It reports each stamped file; a non-zero exit means nothing was stamped — surface the error, don't hand-edit around it. Do **not** touch `status` — leave whatever the plan carries (this command never edits the plan beyond `pr:`; `merged` is owned by `reap-plans`). Do not add a body `PR: #<N>` line — frontmatter is authoritative.
 2. **No frontmatter** — stop: "Plan has no frontmatter — add it per the `plan-frontmatter` skill, then stamp with `stamp-plans -f <plan> <PR_NUM>`."
 3. If the plans dir is gitignored (the default `local/` convention), the stamp needs no commit — `reap-plans` reads it from the filesystem in any worktree. If your plans dir is tracked in git, commit the stamped file(s) to the branch instead.
 
@@ -239,7 +253,7 @@ plan of its own.
 
 Otherwise write `$PLANS_DIR/<today YYYY-MM-DD>-<slug>-followups.md`, where
 `<slug>` is the plan's frontmatter `slug`. If that file already exists (a
-re-run), append the new items instead of overwriting. No confirmation — it is
+re-run), append only the items not already in it instead of overwriting. No confirmation — it is
 a local file the user triages later.
 
 ```markdown
@@ -321,6 +335,10 @@ For each slice N = 1..M in order, the slice is **already done** iff both:
 - `gh pr list --head "BRANCH[N]" --state open --json number` returns a PR —
   record its number as `PR_NUM[N]`.
 
+For each done slice, read `RULINGS[N]` and `FOLLOWUPS[N]` back from its PR
+body's `## Rulings` and `## Follow-ups` sections (empty when absent), so S3's
+de-duplication and S5's stub see every slice, not only this run's.
+
 Let `R` be the first slice that is not already done (R = M+1 if all are done;
 skip straight to S5). If R > 1, run `git checkout "BRANCH[R-1]"` so slice R
 branches off the right base. Never re-execute, rebase, or push a slice that
@@ -347,12 +365,15 @@ is already done.
    implemented on this branch. Do not implement anything from later slices.
    The branch may already contain partial work for this slice from an
    earlier failed run — verify per-task state before redoing steps. For
-   the final whole-branch review use `<DEFAULT_BRANCH or BRANCH[N-1]>` as
-   MERGE_BASE (the single base rev for `review-package`), not
-   `git merge-base`. Keep the plan's workspace (`.superpowers/sdd/<plan>/`)
-   after the final review unless this is slice <M> of <M>; earlier slices'
-   parked findings live there."
-   followed by `FINISH_INSTRUCTION`. The skill returns every ruling and
+   the final whole-branch review use `<BASE_N>` as MERGE_BASE (the single
+   base rev for `review-package`). Keep the plan's workspace
+   (`.superpowers/sdd/<plan>/`) after the final review unless this is slice
+   <M> of <M>; earlier slices' parked findings live there."
+   followed by `FINISH_INSTRUCTION`. `<BASE_N>` is `BRANCH[N-1]` for N > 1;
+   for N = 1 it is the SHA printed by
+   `git merge-base "origin/$DEFAULT_BRANCH" HEAD` — the local
+   `$DEFAULT_BRANCH` may have moved past the branch's fork point, and
+   `review-package` rejects a base that is not an ancestor. The skill returns every ruling and
    follow-up in the shared ledger, including earlier slices'. Set
    `RULINGS[N]` = returned rulings minus every entry already in
    `RULINGS[1..N-1]`, and `FOLLOWUPS[N]` likewise against
@@ -473,7 +494,7 @@ Stamp the **tip PR only**, exactly per Step 7's procedure, with
 tip-merged ⇔ whole stack merged; `reap-plans` unchanged).
 
 Then write the follow-ups stub per Step 7a over `FOLLOWUPS[1..M]` and the
-`ADR_IMPACTS` of `RULINGS[1..M]` (only the slices this run executed),
+`ADR_IMPACTS` of `RULINGS[1..M]` (done slices' entries were read back in S2),
 linking every stack PR in the header and noting each item's slice.
 
 Final report:
