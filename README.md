@@ -62,7 +62,7 @@ aggressive about writing plans without accumulating a graveyard.
 ```
 
 Put the scripts on your PATH with `extras/bin-wrapper`, which runs the installed plugin's
-copy and follows `/plugin` updates without reinstalling (needs `python3`). Install one copy
+copy and follows `/plugin` updates without reinstalling. Install one copy
 per script name:
 
 ```bash
