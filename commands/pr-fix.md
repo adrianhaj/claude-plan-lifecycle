@@ -98,7 +98,7 @@ Severity prefixes from automated reviewers (`**blocking**:`, `nit:`,
 `suggestion:`) seed the bucket — `blocking` is Actionable unless verification
 shows it wrong (then Pushback, with the evidence); `nit` is Nit.
 
-**Before classifying, invoke the `superpowers:receiving-code-review` skill via the `Skill` tool.** That skill owns the verify-before-implementing discipline, YAGNI checks, and pushback patterns — do not re-derive them here. Ignore its "GitHub Thread Replies" section: this command never posts, it drafts replies for the user. If the skill is not available (superpowers plugin not installed), proceed without it and apply the same discipline yourself: verify each claim against the code before implementing, and push back with technical reasoning instead of performative agreement.
+**Before classifying, invoke the `superpowers:receiving-code-review` skill via the `Skill` tool.** That skill owns the verify-before-implementing discipline, YAGNI checks, and pushback patterns — do not re-derive them here. Don't post during this command — it drafts replies for the user. If the user then asks you to post them, reply inside each comment's thread as the skill's "GitHub Thread Replies" section describes, never as a top-level comment. If the skill is not available (superpowers plugin not installed), proceed without it and apply the same discipline yourself: verify each claim against the code before implementing, and push back with technical reasoning instead of performative agreement.
 
 **Stack mode — which slice owns the fix.** Default: the PR the comment sits
 on. Move a code change *down* the stack when the commented code was
