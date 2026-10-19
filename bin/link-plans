@@ -15,6 +15,7 @@
 # Usage:
 #   link-plans                  # from inside the worktree
 #   link-plans <worktree-path>  # explicit target (e.g. from a hook)
+#   link-plans -h               # this help
 #
 # Hook integration — ccmanager (~/.config/ccmanager/config.json) runs
 # post_creation hooks with cwd = the new worktree and sets
@@ -24,6 +25,11 @@
 #   git worktree add ../wt my-branch && link-plans ../wt
 
 set -euo pipefail
+
+if [ "${1:-}" = -h ]; then
+  sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//'
+  exit 0
+fi
 
 worktree="${1:-${CCMANAGER_WORKTREE_PATH:-}}"
 if [ -z "$worktree" ]; then

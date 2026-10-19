@@ -51,6 +51,7 @@ aggressive about writing plans without accumulating a graveyard.
 | `bin/stamp-plans` | script | Stamps `pr: <N>` into every plan file sharing a slug |
 | `bin/reap-plans` | script | Archives merged and abandoned plan groups into `<plans-dir>/done/` |
 | `bin/link-plans` | script | Shares a gitignored plans dir into a worktree — run manually or as a post-worktree-creation hook |
+| `extras/bin-wrapper` | script | Installed under each script's name on your PATH; runs the installed plugin's copy, so updates need no reinstall |
 
 ## Install
 
@@ -60,11 +61,16 @@ aggressive about writing plans without accumulating a graveyard.
 /plugin install plan-lifecycle@claude-plan-lifecycle
 ```
 
-Put the scripts on your PATH:
+Put the scripts on your PATH with `extras/bin-wrapper`, which runs the installed plugin's
+copy and follows `/plugin` updates without reinstalling (needs `python3`). Install one copy
+per script name:
 
 ```bash
-cp bin/* ~/.local/bin/
+curl -fsSL https://raw.githubusercontent.com/muhimu/claude-plan-lifecycle/main/extras/bin-wrapper -o /tmp/bin-wrapper
+for n in reap-plans stamp-plans link-plans; do install -m 755 /tmp/bin-wrapper ~/.local/bin/$n; done
 ```
+
+Working on the plugin itself? Link a checkout instead: `ln -s "$PWD"/bin/* ~/.local/bin/`.
 
 ## Where plans live — the plans-dir convention
 
