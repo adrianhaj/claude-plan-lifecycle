@@ -63,11 +63,11 @@ aggressive about writing plans without accumulating a graveyard.
 
 Put the scripts on your PATH with `extras/bin-wrapper`, which runs the installed plugin's
 copy and follows `/plugin` updates without reinstalling (needs `python3`). Install one copy
-per script name — copy it, don't symlink it:
+per script name:
 
 ```bash
-root="$(python3 -c 'import json, os; print(json.load(open(os.path.expanduser("~/.claude/plugins/installed_plugins.json")))["plugins"]["plan-lifecycle@claude-plan-lifecycle"][0]["installPath"])')"
-for n in reap-plans stamp-plans link-plans; do install -m 755 "$root/extras/bin-wrapper" ~/.local/bin/$n; done
+curl -fsSL https://raw.githubusercontent.com/muhimu/claude-plan-lifecycle/main/extras/bin-wrapper -o /tmp/bin-wrapper
+for n in reap-plans stamp-plans link-plans; do install -m 755 /tmp/bin-wrapper ~/.local/bin/$n; done
 ```
 
 Working on the plugin itself? Link a checkout instead: `ln -s "$PWD"/bin/* ~/.local/bin/`.

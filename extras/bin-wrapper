@@ -3,9 +3,9 @@
 # bin-wrapper — runs the installed plan-lifecycle plugin's copy of a script.
 #
 # Install one copy per script name; the name it is called by picks the script:
-#   root="$(python3 -c '…installPath…')"   # see the README
+#   curl -fsSL https://raw.githubusercontent.com/muhimu/claude-plan-lifecycle/main/extras/bin-wrapper -o /tmp/bin-wrapper
 #   for n in reap-plans stamp-plans link-plans; do
-#     install -m 755 "$root/extras/bin-wrapper" ~/.local/bin/$n
+#     install -m 755 /tmp/bin-wrapper ~/.local/bin/$n
 #   done
 #
 # Each run reads the plugin's current installPath from installed_plugins.json,
