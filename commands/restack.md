@@ -56,30 +56,11 @@ the turn.
 
 ## Step 2 — Discover the stack
 
-Live truth comes from GitHub's native stack object (`repos/{owner}/{repo}/stacks/{N}`);
-the `## Stack` table in PR bodies is human-facing documentation and only a
-fallback for ordering.
-
-1. **Anchor.** Take `--no-trunk` out of `$ARGUMENTS` first. If what's left
-   is non-empty, treat its first token as the anchor. A bare number is tried as a **stack number** first
-   (`gh api repos/{owner}/{repo}/stacks/<N>` — 200 means it is a stack), then
-   as a PR number; anything else is a branch name. Otherwise the anchor is the
-   current branch (`gh pr view --json number` gives its PR).
-2. **Find the stack.** For a PR anchor, read
-   `gh api repos/{owner}/{repo}/pulls/<PR> --jq .stack` — `{number, position,
-   size, base}`. `null` or `size == 1` → stop: "PR #<N> is not part of a
-   stack." Then fetch the stack:
-   ```bash
-   gh api repos/{owner}/{repo}/stacks/<STACK> \
-     --jq '.pull_requests[] | {number, state, merged_at, head: .head.ref, base: .base.ref, sha: .head.sha}'
-   ```
-   The list is in stack order (bottom first). Record `STACK_NUM` for the report.
-   **Fallback** (no `.stack` field — older GitHub, or a stack opened before
-   native stacks): parse the `## Stack` table (`| #<PR> | <title> | <base> |`)
-   from the anchor PR's body, or reconstruct the chain from `baseRefName`
-   links among `gh pr list --author "@me" --state all`. If neither yields a
-   single linear chain containing the anchor, stop: "Cannot reconstruct a
-   linear stack for `<anchor>` — resolve manually."
+1. **Anchor.** Take `--no-trunk` out of `$ARGUMENTS` first; what's left
+   (possibly empty) is `ANCHOR`.
+2. **Find the stack** per `${CLAUDE_PLUGIN_ROOT}/references/stack-discovery.md`.
+   `STACKED` false → stop: "PR #<N> is not part of a stack." `SLICES` is the
+   stack, bottom first; record `STACK_NUM` for the report.
 3. **Partition.** Walk bottom-up: merged PRs form the bottom prefix;
    everything after the first non-merged PR must be open — if a merged PR
    appears *above* an open one, stop: "Stack merged out of order (#<N> merged
@@ -90,9 +71,15 @@ fallback for ordering.
    `B[1..S]` bottom-up. For each, record the pre-rebase remote head
    `OLD_HEAD[i] = $(git rev-parse "origin/B[i]")` (missing → stop: "Remote
    branch `B[i]` not found — was it deleted? Resolve manually."). Then:
-   - `i = 1`, merged prefix non-empty: needs rebase.
-     `NEW_BASE[1] = origin/$DEFAULT_BRANCH`, `OLD_BASE[1]` = the newest merged
-     slice's head SHA (works even though GitHub deleted the branch).
+   - `i = 1`, merged prefix non-empty, and `B[1]` still contains the newest
+     merged slice's head `M`
+     (`git merge-base --is-ancestor "$M" "$OLD_HEAD[1]"` succeeds): needs
+     rebase. `NEW_BASE[1] = origin/$DEFAULT_BRANCH`, `OLD_BASE[1] = M` (works
+     even though GitHub deleted the branch). This rule ignores `--no-trunk`:
+     dropping a merged parent is never optional.
+   - `i = 1`, merged prefix non-empty but `B[1]` no longer contains `M`: it
+     was already restacked after that merge — apply the next rule as if
+     nothing had merged.
    - `i = 1`, nothing merged, no `--no-trunk`: read its PR's
      `gh pr view <PR> --json mergeable,mergeStateStatus`. It needs a rebase iff
      `mergeable == CONFLICTING`, or it is behind trunk
@@ -130,7 +117,7 @@ fallback for ordering.
 5. **Print the plan of record** before touching anything:
 
    ```
-   Stack #<STACK_NUM>: <plan/stack name if evident from titles>
+   Stack #<STACK_NUM> (or "stack of #<bottom>"): <plan/stack name if evident from titles>
    Merged:    #<n> <title> … (old base SHA <short OLD_BASE[1]>)   [or: none]
    Restack:   B[1] ← origin/$DEFAULT_BRANCH        (bottom merged | conflicts with trunk | behind trunk)
               B[2] ← B[1]                         (parent gained 9 commits)

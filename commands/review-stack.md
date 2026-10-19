@@ -28,26 +28,18 @@ after it (or all of `$ARGUMENTS` when the first token is not a number) is
 review would apply its findings to the same checkout. Tell the user to post
 with `--comment` and fix with `/plan-lifecycle:pr-fix` instead.
 
-- **The target is a bare number** — try it as a **stack number** first:
-  `gh api repos/OWNER/REPO/stacks/<N>`. Stacks draw from the same number
-  sequence as issues and PRs, so a number is a stack *or* a PR, never both.
-  A 200 means `STACK_NUM = N`. A 404 means it is a PR number; continue below.
-  Any other status: stop and show the error — do not guess.
-- **PR number** (given, or auto-detected via `gh pr view --json number` for the
-  current branch). If there is no PR, stop and tell the user. Read
-  `gh api repos/OWNER/REPO/pulls/<PR> --jq .stack`:
-  - `null` or `size == 1` → the PR is its own one-slice stack: `TARGET_PRS` is
-    that PR alone, `SIZE = 1`, with its `title`, `head.ref`, `base.ref` and
-    head `sha` from `gh pr view <PR> --json title,headRefName,baseRefName,headRefOid`.
-    Wherever `slice <P>/<SIZE> of stack #<S>` or `Stack #<S>` appears below,
-    write `PR #<N>` instead. Skip to the pre-flight.
-  - otherwise `STACK_NUM = .stack.number`.
+Resolve the target per `${CLAUDE_PLUGIN_ROOT}/references/stack-discovery.md`,
+with `ANCHOR` = the number (empty → the current branch's PR; none → stop and
+tell the user).
 
-Fetch the stack once, with everything the summary needs:
-`gh api repos/OWNER/REPO/stacks/<STACK_NUM> --jq '.pull_requests[] | {number, state, title, head: .head.ref, base: .base.ref, sha: .head.sha}'`.
-`TARGET_PRS` = every PR with `state == open`, in stack order (bottom first);
-merged slices are skipped. Record each one's position in the full list as
-`P/SIZE`. If none is open, stop. The last PR in `TARGET_PRS` is the **top**.
+- **`STACKED` false** → the PR is its own one-slice stack: `TARGET_PRS` is
+  that PR alone, `SIZE = 1`. Wherever `slice <P>/<SIZE> of stack #<S>` or
+  `Stack #<S>` appears below, write `PR #<N>` instead.
+- **Otherwise** `TARGET_PRS` = every open PR in `SLICES`, bottom first;
+  merged slices are skipped. Record each one's position in `SLICES` as
+  `P/SIZE`. If none is open, stop. The last PR in `TARGET_PRS` is the
+  **top**. A stack with no native number is written `stack of #<bottom>`
+  wherever `stack #<S>` appears below.
 
 **Pre-flight:**
 

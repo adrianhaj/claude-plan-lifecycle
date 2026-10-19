@@ -24,12 +24,12 @@ Resolve `OWNER/REPO` once: `gh repo view --json nameWithOwner -q .nameWithOwner`
 - **The review was given a PR** (number or URL). Read
   `gh pr view <N> --json title,baseRefName,headRefName,headRefOid` — the
   head is `<sha>` — and
-  `gh api repos/OWNER/REPO/pulls/<N> --jq .stack`. Fetch the head so its code
-  can be read without a checkout: `git fetch origin pull/<N>/head`.
-  - `null` or `size == 1` → the **PR** row below.
-  - otherwise → the **Stacked PR** row. Read the stack:
-    `gh api repos/OWNER/REPO/stacks/<.stack.number> --jq '.pull_requests[] | {number, state, head: .head.ref, sha: .head.sha}'`.
-    Record `<N>`'s position in the list as `P/SIZE`. The slices above are the
+  find its stack per `${CLAUDE_PLUGIN_ROOT}/references/stack-discovery.md`
+  with `ANCHOR = <N>`. Fetch the head so its code can be read without a
+  checkout: `git fetch origin pull/<N>/head`.
+  - `STACKED` false → the **PR** row below.
+  - otherwise → the **Stacked PR** row. Record `<N>`'s position in `SLICES`
+    as `P/SIZE`. The slices above are the
     open PRs after it; the top is the last open PR, and `<top sha>` its head.
     Fetch it too: `git fetch origin pull/<top>/head`.
 - **Anything else** (the current diff, a branch, a path) → the **Local** row.

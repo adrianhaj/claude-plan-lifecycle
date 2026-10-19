@@ -19,30 +19,30 @@ after it (or all of `$ARGUMENTS` when the first token is not a number) is
 `GUIDANCE` — the user's pre-brief, e.g. "skip the getattr nit; fix the
 absorb() indexing with a positional map". It is applied in Step 2.
 
-- **The target is a bare number** — try it as a **stack number** first:
-  `gh api repos/OWNER/REPO/stacks/<N>`. Stacks draw from the same number
-  sequence as issues and PRs, so a number is a stack *or* a PR, never both.
-  A 200 means **stack mode over the whole stack**: `TARGET_PRS` = every PR in `.pull_requests[]` with `state == open`,
-  in stack order (bottom first). A 404 means it is a PR number; continue below.
-- **PR number** (given, or auto-detected via
-  `gh pr view --json number,headRefName,baseRefName,url` for the current
-  branch). If there is no PR, stop and tell the user — do not create one.
-  Read `gh api repos/OWNER/REPO/pulls/<PR> --jq .stack`:
-  - `null` or `size == 1` → **single mode**. `TARGET_PRS = [PR]`.
-  - otherwise → **stack mode over one PR**. `TARGET_PRS = [PR]`, but record
-    `STACK_NUM`, `POSITION`, `SIZE`, and fetch the ordered slice list from
-    `repos/OWNER/REPO/stacks/<STACK_NUM>` (needed to attribute comments to
-    the slice that introduced the code, and to know whether a restack is due).
+Resolve the target per `${CLAUDE_PLUGIN_ROOT}/references/stack-discovery.md`,
+with `ANCHOR` = the number (empty → the current branch's PR; if there is
+none, stop and tell the user — do not create one):
+
+- **The number was a stack** → **stack mode over the whole stack**:
+  `TARGET_PRS` = every open PR in `SLICES`, bottom first.
+- **`STACKED` false** → **single mode**. `TARGET_PRS = [ANCHOR_PR]`.
+- **Otherwise** → **stack mode over one PR**. `TARGET_PRS = [ANCHOR_PR]`;
+  `SLICES` and `POSITION/SIZE` are needed to attribute comments to the slice
+  that introduced the code, and to know whether a restack is due.
 
 Print the header: `PR #<N>` or `PR #<N> (stack #<S>, slice <POSITION>/<SIZE>)`
 or `Stack #<S> (<K> open PRs)`.
 
 **Stack-mode pre-flight** (both variants — the command may check out other
 slice branches): `git status --porcelain` must have no non-`??` lines (the
-`?? local` symlink line is expected), and the current branch must not be the
-default branch. Otherwise stop: "Stack mode needs a clean tree on a stack
-branch." Then `git fetch origin`, so the `origin/<branch>` refs that blame,
-the tip check and the checkouts read are current.
+`?? local` symlink line is expected), the current branch must not be the
+default branch, and this must be a worktree, not the main checkout
+(`git rev-parse --git-dir` ends in `.git/worktrees/<name>`) — `/restack`,
+which Step 4b hands off to after a push, refuses the main checkout, so
+checking only then would leave the stack half-updated. Otherwise stop:
+"Stack mode needs a clean worktree on a stack branch." Then
+`git fetch origin`, so the `origin/<branch>` refs that blame, the tip check
+and the checkouts read are current.
 
 ## Step 1 — Fetch review state
 
@@ -168,7 +168,8 @@ ask the user.
 If the branch just pushed is not the tip of the stack (`POSITION < SIZE`, or
 any lower slice in the bottom-up loop), the branches above no longer contain
 their parent's tip. Invoke the `plan-lifecycle:restack` command via the
-`Skill` tool with `<STACK_NUM> --no-trunk` as its argument — `--no-trunk`
+`Skill` tool with `<STACK_NUM> --no-trunk` as its argument (a stack with no
+native number: the fixed PR's number instead of `<STACK_NUM>`) — `--no-trunk`
 keeps it from rebasing the bottom slice onto trunk, which would rewrite a
 slice below the fix. It owns the cascade rebase, the
 tip verification, the single force-with-lease gate, and the `## Stack` table
