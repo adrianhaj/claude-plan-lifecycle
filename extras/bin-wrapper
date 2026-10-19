@@ -15,12 +15,13 @@
 set -euo pipefail
 
 name="$(basename "$0")"
-root="$(python3 -c 'import json, os
-p = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR", os.path.expanduser("~/.claude")), "plugins", "installed_plugins.json")
-print(json.load(open(p))["plugins"]["plan-lifecycle@claude-plan-lifecycle"][0]["installPath"])' 2>/dev/null)" || {
+# The installPath value is distinctive enough to match without parsing the JSON.
+root="$(sed -n 's#.*"installPath": *"\([^"]*/claude-plan-lifecycle/plan-lifecycle/[^"]*\)".*#\1#p' \
+  "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json" 2>/dev/null | head -1 || true)"
+if [ -z "$root" ]; then
   echo "$name: plan-lifecycle plugin not found in installed_plugins.json" >&2
   exit 1
-}
+fi
 if [ ! -x "$root/bin/$name" ]; then
   echo "$name: no such script in the installed plugin ($root/bin)" >&2
   exit 1
