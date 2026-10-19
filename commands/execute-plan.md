@@ -133,16 +133,16 @@ Print one line naming the choice. Then **invoke the chosen skill** via the `Skil
 > - follow-on work the plan itself defers (a "follow-ups" / "future work" list, or a step telling you to record follow-ups in the plan file — the plan file must not be edited, so ledger them instead): `Plan: observation: <one-liner>`
 > - a Minor finding from the final whole-branch review that is not fixed: `Final: minor (deferred): <one-liner>`
 >
-> When you stop to ask your human partner and they decide, ledger the decision as `Task <N>: Ruling: (user) <decision> — <the question it answered>` (keep the literal `Ruling:` so your "Rulings I made" collection picks it up). If they leave the question open, your stop rules still apply: continue only if the run can proceed safely without the answer, and then ledger `Task <N>: observation: open question — <question>`; otherwise stay stopped.
+> When you stop to ask your human partner and they decide, ledger the decision as `Task <N>: Ruling: (user) <decision> — <the question it answered> — <cost if wrong>` (keep the literal `Ruling:` so your "Rulings I made" collection picks it up). If they leave the question open, your stop rules still apply: continue only if the run can proceed safely without the answer, and then ledger `Task <N>: observation: open question — <question>`; otherwise stay stopped.
 >
 > ADRs live in the repo's ADR directory (e.g. `docs/adr/`, or wherever its CLAUDE.md says; no ADR directory → skip this paragraph). At setup, list its file titles once; read an ADR only when a ruling's subject matches a title. When a ruling — yours or theirs — changes what an ADR states:
 >
-> - **An ADR file this plan's diff creates or modifies:** amend it in the same task, so it merges matching the code, and end the ruling's ledger line with `— ADR-<NNNN> updated`.
+> - **An ADR file this plan's diff creates or modifies:** amend it in the same task — through the implementer or a fix round, never in the controller session — so it merges matching the code, and end the ruling's ledger line with `— ADR-<NNNN> updated`.
 > - **Any other ADR:** do not edit it — changing a settled ADR is a planning decision. End the ruling's ledger line with `— ADR impact: ADR-<NNNN> <how the ruling bears on it>`. Ledger nothing else for it; the ruling carries it.
 >
 > In your Finish step, where you collect "Rulings I made" before deleting anything, also build a "Follow-ups" list from the ledger — before the workspace is deleted, never from memory. Then, when you reach the point where you would invoke `superpowers:finishing-a-development-branch`, do NOT — return control to `/execute-plan`, which opens the PR. Return your "Rulings I made" list verbatim in your final message; if you made no rulings, say so. Then return the "Follow-ups" list, built from every `minor (deferred)`, `observation`, and real-but-deferred `parked` ledger line, curated: merge lines that describe the same issue into one item; drop items a later fix closed; where a later review showed a line's description is wrong, correct it and mark it `(corrected: <what changed>)`. Each item keeps its source tags (e.g. `Task 3, Final`). If there are none, say so.
 
-Both skills end by invoking `finishing-a-development-branch`, which presents merge/PR/keep options that collide with Steps 5–7. The instruction above pre-empts that. Capture the returned rulings list as `RULINGS` and the follow-ups list as `FOLLOWUPS` (each empty if none — `executing-plans` normally returns neither), and set `ADR_IMPACTS` = the `RULINGS` entries ending in `— ADR impact: …`. Follow-ups are discovered work the run did not do; without this capture they die with the skill's workspace.
+Both skills end by invoking `finishing-a-development-branch`, which presents merge/PR/keep options that collide with Steps 5–7. The instruction above pre-empts that. Capture the returned rulings list as `RULINGS` and the follow-ups list as `FOLLOWUPS` (each empty if none; both skills keep the ledger these come from — an absent list is a defect to report, not normal). A real-but-deferred `parked` finding appears in both: the Rulings entry is the decision, the Follow-ups entry the work it leaves, and set `ADR_IMPACTS` = the `RULINGS` entries ending in `— ADR impact: …`. Follow-ups are discovered work the run did not do; without this capture they die with the skill's workspace.
 
 **Stacked mode exception:** do NOT invoke here — record the choice and jump to the Stacked execution section; the skill is invoked once per slice in S3 with a slice-scoped instruction.
 
@@ -241,7 +241,7 @@ Per the plan-lifecycle convention: every plans file of the effort must carry the
    ```bash
    stamp-plans -f "$PLAN_PATH" <PR_NUM>
    ```
-   It reads the slug from `PLAN_PATH`, finds every sibling file with that slug, and sets `pr: <PR_NUM>` (bare YAML integer — no quotes, no `#`) in each one's frontmatter. It reports each stamped file; a non-zero exit means nothing was stamped — surface the error, don't hand-edit around it. Do **not** touch `status` — leave whatever the plan carries (this command never edits the plan beyond `pr:`; `merged` is owned by `reap-plans`). Do not add a body `PR: #<N>` line — frontmatter is authoritative.
+   It reads the slug from `PLAN_PATH`, finds every sibling file with that slug, and sets `pr: <PR_NUM>` (bare YAML integer — no quotes, no `#`) in each one's frontmatter. It reports each stamped file; on a non-zero exit, surface the error and the files it did report — it stamps one file at a time, so earlier ones may already carry the number — and don't hand-edit around it. Do **not** touch `status` — leave whatever the plan carries (this command never edits the plan beyond `pr:`; `merged` is owned by `reap-plans`). Do not add a body `PR: #<N>` line — frontmatter is authoritative.
 2. **No frontmatter** — stop: "Plan has no frontmatter — add it per the `plan-frontmatter` skill, then stamp with `stamp-plans -f <plan> <PR_NUM>`."
 3. If the plans dir is gitignored (the default `local/` convention), the stamp needs no commit — `reap-plans` reads it from the filesystem in any worktree. If your plans dir is tracked in git, commit the stamped file(s) to the branch instead.
 
@@ -367,7 +367,7 @@ is already done.
    earlier failed run — verify per-task state before redoing steps. For
    the final whole-branch review use `<BASE_N>` as MERGE_BASE (the single
    base rev for `review-package`). Keep the plan's workspace
-   (`.superpowers/sdd/<plan>/`) after the final review unless this is slice
+   (`.superpowers/sdd/<plan basename>/`, as `sdd-workspace` resolves it) after the final review unless this is slice
    <M> of <M>; earlier slices' parked findings live there."
    followed by `FINISH_INSTRUCTION`. `<BASE_N>` is `BRANCH[N-1]` for N > 1;
    for N = 1 it is the SHA printed by

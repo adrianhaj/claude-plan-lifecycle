@@ -42,6 +42,11 @@ while getopts "nd:h" opt; do
     *) echo "reap-plans: unknown option" >&2; exit 2 ;;
   esac
 done
+shift $((OPTIND - 1))
+if (( $# > 0 )); then
+  echo "reap-plans: unexpected argument '$1' (to pick a plans dir, use -d DIR)" >&2
+  exit 2
+fi
 
 if [[ -z "$plans_dir" ]]; then
   plans_dir="${PLANS_DIR:-$(git config --get plans.dir 2>/dev/null || true)}"

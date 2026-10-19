@@ -22,13 +22,15 @@ To make that safe, every plan carries YAML frontmatter that links it to its PR:
 ---
 title: Split state enum
 slug: split-state-enum   # shared by a design doc and its implementation plan
+issue: 3178              # root issue; the PR that ships the plan carries `Closes #3178`
 status: draft            # draft → in-progress → merged (or abandoned)
 pr:                      # stamped when the PR opens; the join key for reaping
 ---
 ```
 
 `reap-plans` checks each plan group's `pr:` against GitHub: merged → stamp `status: merged`
-and move the whole group to `<plans-dir>/done/`. No PR yet → never touched. So you can be
+and move the whole group to `<plans-dir>/done/`. Any member marked `status: abandoned` → the
+group moves to `done/` as-is, with no PR check. No PR yet → never touched. So you can be
 aggressive about writing plans without accumulating a graveyard.
 
 ## Components
@@ -38,16 +40,16 @@ aggressive about writing plans without accumulating a graveyard.
 | `plan-frontmatter` | skill | Frontmatter spec, status ownership, and the stacked-PR slicing convention (`## PR N:` headings) |
 | `reap-plans` | skill | Wraps `bin/reap-plans` with run order and conventions |
 | `handoff-prompt` | skill | Generates a self-contained prompt to continue work in a fresh session |
-| `/execute-plan` | command | Drives a plan end-to-end in a worktree: execution skill → test/lint verify → draft PR → stamp. Discovered-but-deferred work lands in the PR body and a `<slug>-followups.md` stub. Plans with `## PR N:` slice headings become a stacked-PR chain, linked as a GitHub native stack via `gh stack link` when available |
+| `/execute-plan` | command | Drives a plan end-to-end in a worktree: execution skill → test/lint verify → draft PR → stamp. Decisions made during the run — the execution skill's and yours, when it asks — land in the PR's Rulings section; a ruling that changes an ADR this plan writes amends it in the same PR, and one touching any other ADR is flagged as `ADR impact`. Discovered-but-deferred work lands in the PR body and a `<date>-<slug>-followups.md` stub. Plans with `## PR N:` slice headings become a stacked-PR chain, linked as a GitHub native stack via `gh stack link` when available |
 | `/restack` | command | After a stack's bottom PR squash-merges, after a lower slice gained commits, or when the bottom PR conflicts with or is behind trunk: cascade-rebase every branch whose parent moved, verify the tip, force-with-lease push behind a confirmation gate, retarget the new bottom PR. Discovers the stack from GitHub's native stack object, falling back to the PRs' `## Stack` table or base-branch chain; accepts a stack number |
 | `/pr-fix` | command | Fetch PR review comments (your own inline notes count as work items; `/review-stack` findings are verified like a reviewer's), plan fixes, implement and push; drafts replies for you to post (never posts to GitHub itself). Takes a PR or stack number plus optional free-text guidance for the fixes; on a stacked PR each fix lands in the slice that owns the code, then `/restack` rebases the slices above |
-| `/review-stack` | command | Run the built-in `/code-review` on every open PR of a stack, one review per slice (each scoped to that slice's diff against the slice below), launched together, from a checkout of the stack's top; then one verifier per slice checks each finding against the slice's code, the PR body, the ADRs, the slice's commit messages and review threads and the slices above, and rejected findings appear only in the summary, grouped by slice. Takes a stack or PR number; review flags such as the effort level pass through. `--comment` posts each slice's confirmed and plausible findings as one review on its PR (nits prefixed `nit:`), every comment marked so `/pr-fix <stack>` verifies them as review findings rather than treating them as your own notes |
+| `/review-stack` | command | Run the built-in `/code-review` on every open PR of a stack, one review per slice (each scoped to that slice's diff against the slice below), launched together, from a checkout of the stack's top; then one verifier per slice checks each finding against the slice's code, the PR body, the ADRs, the slice's commit messages and review threads and the slices above, and rejected findings appear only in the summary, grouped by slice. Takes a stack or PR number; review flags such as the effort level pass through. `--comment` posts each slice's confirmed and plausible findings as one review on its PR, plus a file-level comment for a finding outside every hunk (nits prefixed `nit:`), every comment marked so `/pr-fix <stack>` verifies them as review findings rather than treating them as your own notes |
 | `/verify-findings` | command | Verify the findings of the latest `/code-review` in the session — local changes, a PR or a stacked PR — with `/review-stack`'s verifier: one agent checks each finding against the reviewed code, the PR body, the ADRs and CLAUDE.md files, the commit messages and review threads and, on a stacked PR, the slices above, then prints it as confirmed, plausible or rejected (with the reason). Read-only; `/review-stack` reads its verifier prompt from this command, so the rules live in one place |
 | `/pr-triage` | command | Re-prove a PR's claims locally, so you can trust a PR you cannot test yourself: re-runs the tests the PR names, checks that each fix's regression test fails with the fix reverted, and writes throwaway probe tests for commit claims no test covers. Writes one page per PR to `local/triage/<N>.md` — outcome, impact, risk and decisions, a claim ledger (reproduced, failed or not reproducible here), at most five proven findings, and what was and was not checked. Takes a stack number (every open slice) or a PR number (that slice only); one detached worktree and one agent per slice, in parallel; asks before running a PR someone else wrote. Never writes to GitHub. Repo-specific rules come from a committed triage profile (below) |
 | `/pr-fix-loop` | command | Loop `/pr-fix` autonomously: fix → push → wait for the automated review workflow's next review → repeat, until the review is clean or 5 rounds have run |
 | `/bug-hunt` | command | Autonomous red-green-refactor bug hunter with a reviewer-subagent gate |
 | `bin/stamp-plans` | script | Stamps `pr: <N>` into every plan file sharing a slug |
-| `bin/reap-plans` | script | Archives merged plan groups into `<plans-dir>/done/` |
+| `bin/reap-plans` | script | Archives merged and abandoned plan groups into `<plans-dir>/done/` |
 | `bin/link-plans` | script | Shares a gitignored plans dir into a worktree — run manually or as a post-worktree-creation hook |
 
 ## Install
@@ -129,8 +131,11 @@ it.
   clear message on older versions).
 - **[superpowers](https://github.com/obra/superpowers)** plugin — `/execute-plan` drives plans via
   `superpowers:subagent-driven-development` (default when subagents are available) or
-  `superpowers:executing-plans` (checked pre-flight); `/pr-fix` uses
+  `superpowers:executing-plans` (checked pre-flight); `/bug-hunt` needs
+  `superpowers:requesting-code-review`'s reviewer template; `/pr-fix` uses
   `superpowers:receiving-code-review` when present and degrades gracefully without it.
+- **Built-in skills** — `/review-stack` and `/verify-findings` run on the built-in `/code-review`;
+  `/pr-fix-loop` runs on the built-in `/loop`.
 - **Test and lint verify commands** — declare them in the repo's CLAUDE.md, or provide `make test`
   / `make lint` targets (the default). `/execute-plan` and `/restack` refuse to open/push anything
   unverified.
@@ -138,7 +143,7 @@ it.
   gitignored plans dir with worktrees, share it with `link-plans`: run it inside a new worktree
   (`link-plans` or `link-plans <worktree-path>`), or wire it as a post-worktree-creation hook —
   ccmanager is supported out of the box (config snippet in the script header). Tracked plans dirs
-  need nothing; the scripts resolve symlinks via `realpath`.
+  need nothing.
 - Branch names use a `<namespace>/<slug>` shape (e.g. `alice/split-state-enum`); stacked branches
   become `<namespace>/<prefix>-<N>-<slice>`.
 

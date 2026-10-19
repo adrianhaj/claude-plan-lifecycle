@@ -98,7 +98,7 @@ Severity prefixes from automated reviewers (`**blocking**:`, `nit:`,
 `suggestion:`) seed the bucket — `blocking` is Actionable unless verification
 shows it wrong (then Pushback, with the evidence); `nit` is Nit.
 
-**Before classifying, invoke the `superpowers:receiving-code-review` skill via the `Skill` tool.** That skill owns the verify-before-implementing discipline, YAGNI checks, and pushback patterns — do not re-derive them here. If the skill is not available (superpowers plugin not installed), proceed without it and apply the same discipline yourself: verify each claim against the code before implementing, and push back with technical reasoning instead of performative agreement.
+**Before classifying, invoke the `superpowers:receiving-code-review` skill via the `Skill` tool.** That skill owns the verify-before-implementing discipline, YAGNI checks, and pushback patterns — do not re-derive them here. Ignore its "GitHub Thread Replies" section: this command never posts, it drafts replies for the user. If the skill is not available (superpowers plugin not installed), proceed without it and apply the same discipline yourself: verify each claim against the code before implementing, and push back with technical reasoning instead of performative agreement.
 
 **Stack mode — which slice owns the fix.** Default: the PR the comment sits
 on. Move a code change *down* the stack when the commented code was
@@ -113,8 +113,8 @@ checked out for it.
 at the tip of the stack (`git show origin/<tip branch>:<file>`). If a higher
 slice already fixed it, bucket it **Stale** with `fixed in #<M>`, `#<M>` being
 the slice whose diff changed that code. The user can still ask for the fix in
-the lower slice at the approval step, since each slice merges into main on its
-own. When two comments describe the same defect in the same code, plan one fix
+the lower slice at the approval step, since each slice merges into the default branch on
+its own. When two comments describe the same defect in the same code, plan one fix
 and mark the other row `same as #<row>`.
 
 **Apply `GUIDANCE` first.** Before classifying, turn each instruction in
@@ -138,7 +138,7 @@ Apply code changes for all approved Actionable + Self-note + Nit items. Group co
 
 **Rules during implementation:**
 
-- Run the project's test/lint suite after each logical group. If something breaks, stop and report — don't paper over.
+- Run the verify commands (the verify convention: test and lint commands declared in the repo's CLAUDE.md, else `make test` / `make lint`) after each logical group. If something breaks, stop and report — don't paper over.
 - Do not create branches. Commit to the currently checked-out PR branch.
 - Commit messages should describe the change, not reference the comment ID — comment IDs rot, code messages don't.
 
@@ -216,7 +216,7 @@ The "Suggested reply" lines are drafts for the user to copy, edit, and post manu
 
 ## Hard rules
 
-- **No GitHub mutations from this command.** No `gh api POST/PATCH/DELETE`, no `gh pr review`, no `gh pr comment`, no thread resolution, no `gh pr merge`. Read-only `gh` only. The only sanctioned mutations happen inside `/restack` (its own gated lease-push and `## Stack` table edits), never here.
+- **No GitHub mutations from this command.** No mutating `gh api` calls (the read-only GraphQL query in Step 1 is fine), no `gh pr review`, no `gh pr comment`, no thread resolution, no `gh pr merge`. Read-only `gh` only. The only sanctioned mutations happen inside `/restack` (its own gated lease-push and `## Stack` table edits), never here.
 - **No force push from this command.** Plain `git push` on the fixed branch. If rejected, stop. Rewriting branches *above* the fixed one is `/restack`'s job, behind its gate.
 - **Never touch branches below the fixed slice.** A fix moves down only by being committed on the owning slice's branch in the bottom-up loop.
 - **No auto-merge.** Even if the PR is now green, do not merge it.

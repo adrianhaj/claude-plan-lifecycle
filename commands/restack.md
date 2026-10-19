@@ -240,7 +240,9 @@ recipe."
 - **Worktree only; never on the default branch; clean tree required.**
 - **`--force-with-lease` only** — never bare `--force`; only after the Step 5
   gate; only on the stack's own branches. A lease failure is a full
-  stop, never a retry.
+  stop, never a retry. The gate is a human confirmation, except under
+  `/pr-fix-loop`, which answers it by its own rule (push only when the
+  range-diff maps every commit unchanged; otherwise abort).
 - **Nothing remote changes before Step 5.** Steps 1–4 are read-only towards
   origin and GitHub.
 - **Halt-on-red / halt-on-divergence / halt-on-genuine-conflict /
