@@ -15,7 +15,6 @@
 # Usage:
 #   link-plans                  # from inside the worktree
 #   link-plans <worktree-path>  # explicit target (e.g. from a hook)
-#   link-plans -V               # print the plugin build (commit sha12) and exit
 #   link-plans -h               # this help
 #
 # Hook integration — ccmanager (~/.config/ccmanager/config.json) runs
@@ -27,28 +26,10 @@
 
 set -euo pipefail
 
-# plugin_build — the plugin build this script belongs to: its install dir under
-# ~/.claude/plugins/cache (named by the commit sha12), else the HEAD of the
-# plugin checkout it lives in, else "unknown". Follows symlinks, so a
-# ~/.local/bin link reports the copy it points at.
-plugin_build() {
-  local src root
-  src="$(realpath "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
-  root="$(dirname "$(dirname "$src")")"
-  case "$root" in
-    */plugins/cache/*/*/*) basename "$root"; return ;;
-  esac
-  if [ -f "$root/.claude-plugin/plugin.json" ] &&
-    git -C "$root" rev-parse --short=12 HEAD 2>/dev/null; then
-    return
-  fi
-  echo unknown
-}
-
-case "${1:-}" in
-  -V) plugin_build; exit 0 ;;
-  -h) sed -n '3,27p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-esac
+if [ "${1:-}" = -h ]; then
+  sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//'
+  exit 0
+fi
 
 worktree="${1:-${CCMANAGER_WORKTREE_PATH:-}}"
 if [ -z "$worktree" ]; then

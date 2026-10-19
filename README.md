@@ -51,6 +51,7 @@ aggressive about writing plans without accumulating a graveyard.
 | `bin/stamp-plans` | script | Stamps `pr: <N>` into every plan file sharing a slug |
 | `bin/reap-plans` | script | Archives merged and abandoned plan groups into `<plans-dir>/done/` |
 | `bin/link-plans` | script | Shares a gitignored plans dir into a worktree — run manually or as a post-worktree-creation hook |
+| `extras/bin-wrapper` | script | Installed under each script's name on your PATH; runs the installed plugin's copy, so updates need no reinstall |
 
 ## Install
 
@@ -60,33 +61,16 @@ aggressive about writing plans without accumulating a graveyard.
 /plugin install plan-lifecycle@claude-plan-lifecycle
 ```
 
-Put the scripts on your PATH with small wrappers that run the installed plugin's copy — they
-follow `/plugin` updates without relinking (needs `python3` to read `installed_plugins.json`):
+Put the scripts on your PATH with `extras/bin-wrapper`, which runs the installed plugin's
+copy and follows `/plugin` updates without reinstalling (needs `python3`). Install one copy
+per script name — copy it, don't symlink it:
 
 ```bash
-mkdir -p ~/.local/bin
-for name in reap-plans stamp-plans link-plans; do
-  cat > ~/.local/bin/$name <<'EOF'
-#!/usr/bin/env bash
-# Runs the installed plan-lifecycle plugin's copy of this script.
-set -euo pipefail
-name="$(basename "$0")"
-root="$(python3 -c 'import json, os
-p = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR", os.path.expanduser("~/.claude")), "plugins", "installed_plugins.json")
-print(json.load(open(p))["plugins"]["plan-lifecycle@claude-plan-lifecycle"][0]["installPath"])' 2>/dev/null)" || {
-  echo "$name: plan-lifecycle plugin not found in installed_plugins.json" >&2; exit 1; }
-exec "$root/bin/$name" "$@"
-EOF
-  chmod +x ~/.local/bin/$name
-done
+root="$(python3 -c 'import json, os; print(json.load(open(os.path.expanduser("~/.claude/plugins/installed_plugins.json")))["plugins"]["plan-lifecycle@claude-plan-lifecycle"][0]["installPath"])')"
+for n in reap-plans stamp-plans link-plans; do install -m 755 "$root/extras/bin-wrapper" ~/.local/bin/$n; done
 ```
 
 Working on the plugin itself? Link a checkout instead: `ln -s "$PWD"/bin/* ~/.local/bin/`.
-
-Each script answers `-V` with the build it runs: the commit's 12-character sha — the
-install dir name under `~/.claude/plugins/cache/`, or a checkout's `HEAD`. Through the
-wrappers it should match the id `installed_plugins.json` lists under
-`plan-lifecycle@claude-plan-lifecycle`; if it doesn't, you are running a stale copy.
 
 ## Where plans live — the plans-dir convention
 

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+#
+# bin-wrapper — runs the installed plan-lifecycle plugin's copy of a script.
+#
+# Install one copy per script name; the name it is called by picks the script:
+#   root="$(python3 -c '…installPath…')"   # see the README
+#   for n in reap-plans stamp-plans link-plans; do
+#     install -m 755 "$root/extras/bin-wrapper" ~/.local/bin/$n
+#   done
+#
+# Each run reads the plugin's current installPath from installed_plugins.json,
+# so the wrappers follow /plugin updates without being reinstalled. Copy it,
+# don't symlink it: a link into the plugin cache would pin one build.
+
+set -euo pipefail
+
+name="$(basename "$0")"
+root="$(python3 -c 'import json, os
+p = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR", os.path.expanduser("~/.claude")), "plugins", "installed_plugins.json")
+print(json.load(open(p))["plugins"]["plan-lifecycle@claude-plan-lifecycle"][0]["installPath"])' 2>/dev/null)" || {
+  echo "$name: plan-lifecycle plugin not found in installed_plugins.json" >&2
+  exit 1
+}
+if [ ! -x "$root/bin/$name" ]; then
+  echo "$name: no such script in the installed plugin ($root/bin)" >&2
+  exit 1
+fi
+exec "$root/bin/$name" "$@"
