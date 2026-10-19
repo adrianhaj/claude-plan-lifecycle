@@ -36,7 +36,7 @@ $ARGUMENTS
    - the new test's path
    - an explicit instruction to check for regressions in adjacent code paths (callers of the changed function, sibling cases in the same switch/if-chain, related tests that were not run)
 
-   The reviewer must answer two questions: *Does this fix the reported symptom?* and *What does this fix break?* — and keep the template's "Declined to judge" list: rule on each of its lines in step 7 (follow up, or set aside with a reason in the *Reviewer notes*), so nothing it set aside is dropped silently.
+   The reviewer must answer two questions: *Does this fix the reported symptom?* and *What does this fix break?* — and keep the template's "Declined to judge" list: rule on each of its lines in step 7 — one you follow up counts as a finding of that round (same loop, same 5-round cap); one you set aside gets its reason in the *Reviewer notes* — so nothing it set aside is dropped silently.
 
 7. **Iterate on review — 5 rounds maximum.** If the reviewer flags any high-confidence issue, go back to step 4 (or step 2 if the root cause was wrong), addressing the whole findings list in one pass. Re-run the full verification. Write a fresh package and re-spawn the reviewer. From round 4 on, dispatch the reviewer on the most capable available model (if it is not already there) — after three rounds the same reviewer tier is not seeing the problem. When round 5 still leaves findings open, stop looping: adjudicate each residual yourself (wrong reviewer / real-but-deferrable / real-and-blocking) and carry the adjudications into the step 8 *Reviewer notes* — a residual you judge blocking means the hand-off states the fix is incomplete.
 

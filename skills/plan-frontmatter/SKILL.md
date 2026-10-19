@@ -118,8 +118,9 @@ headings:
   numbers consecutive from 1.
 - Put no prose between a slice's last task and the next `## PR` heading, and
   number tasks `N.M`. SDD's `task-brief` cuts a task at the next `Task`
-  heading, so trailing prose — and the next slice's heading — would land in
-  the last task's brief; a bare `1` would select every `1.x` task.
+  heading, so the next slice's `## PR` heading line always ends a slice's
+  last brief (harmless), and any prose before it would land there too; a
+  bare `1` would select every `1.x` task.
 - The text after the first colon is the PR title **verbatim**, so it must be
   a strict Conventional-Commits title: `type(scope): description` — colon
   right after the type/scope, NEVER an em-dash (`feat(api) — …` fails

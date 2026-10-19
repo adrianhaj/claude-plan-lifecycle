@@ -98,7 +98,7 @@ Severity prefixes from automated reviewers (`**blocking**:`, `nit:`,
 `suggestion:`) seed the bucket — `blocking` is Actionable unless verification
 shows it wrong (then Pushback, with the evidence); `nit` is Nit.
 
-**Before classifying, invoke the `superpowers:receiving-code-review` skill via the `Skill` tool.** That skill owns the verify-before-implementing discipline, YAGNI checks, and pushback patterns — do not re-derive them here. Don't post during this command — it drafts replies for the user. If the user then asks you to post them, reply inside each comment's thread as the skill's "GitHub Thread Replies" section describes, never as a top-level comment. If the skill is not available (superpowers plugin not installed), proceed without it and apply the same discipline yourself: verify each claim against the code before implementing, and push back with technical reasoning instead of performative agreement.
+**Before classifying, invoke the `superpowers:receiving-code-review` skill via the `Skill` tool.** That skill owns the verify-before-implementing discipline, YAGNI checks, and pushback patterns — do not re-derive them here. Posting is governed by the hard rules below, not by that skill's "GitHub Thread Replies" section. If the skill is not available (superpowers plugin not installed), proceed without it and apply the same discipline yourself: verify each claim against the code before implementing, and push back with technical reasoning instead of performative agreement.
 
 **Stack mode — which slice owns the fix.** Default: the PR the comment sits
 on. Move a code change *down* the stack when the commented code was
@@ -216,7 +216,8 @@ The "Suggested reply" lines are drafts for the user to copy, edit, and post manu
 
 ## Hard rules
 
-- **No GitHub mutations from this command.** No mutating `gh api` calls (the read-only GraphQL query in Step 1 is fine), no `gh pr review`, no `gh pr comment`, no thread resolution, no `gh pr merge`. Read-only `gh` only. The only sanctioned mutations happen inside `/restack` (its own gated lease-push and `## Stack` table edits), never here.
+- **No GitHub mutations from this command.** No mutating `gh api` calls (read-only calls are fine, including Step 1's GraphQL query), no `gh pr review`, no `gh pr comment`, no thread resolution, no `gh pr merge`. The only sanctioned mutations happen inside `/restack` (its own gated lease-push and `## Stack` table edits), never here.
+- **Posting replies only on request, after the run.** If the user asks afterwards to post the drafted replies, post each inside its comment's thread (`gh api repos/OWNER/REPO/pulls/<PR>/comments/<id>/replies -f body=…`), never as a top-level PR comment.
 - **No force push from this command.** Plain `git push` on the fixed branch. If rejected, stop. Rewriting branches *above* the fixed one is `/restack`'s job, behind its gate.
 - **Never touch branches below the fixed slice.** A fix moves down only by being committed on the owning slice's branch in the bottom-up loop.
 - **No auto-merge.** Even if the PR is now green, do not merge it.
