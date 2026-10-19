@@ -149,6 +149,28 @@ known gap is still real. Never argue with the ruling's choice.
 **h. Facts.** Numbers, counts, coverage, stack tables and bases in the
 description: compare them with what you measured or what GitHub shows.
 
+**i. Changed tests — do the old ones still pass?** A green suite proves
+little when the PR edited the tests to match its code. For each test file
+(per the profile's Test files) that exists at `B` and was modified or
+deleted by the PR (`git -C "${WT:?}" diff --name-status "${B:?}" "${H:?}"`,
+status `M` or `D`):
+
+```bash
+git -C "${WT:?}" checkout "${B:?}" -- <file>
+# run that file's tests at H
+git -C "${WT:?}" checkout "${H:?}" -- <file>    # a deleted file: rm it instead
+git -C "${WT:?}" status --porcelain             # must print nothing
+```
+
+- It passes: a Checked line.
+- It fails: read the failing assertion. If the description or a commit
+  states that change of behaviour, it is a Checked line naming that
+  statement. If not, it is a finding: the tests pass only because the PR
+  changed them.
+- It does not compile (helpers or signatures changed with the code): read
+  the test diff instead, judge each removed or loosened assertion, added
+  skip or changed expected value the same way, and say so.
+
 Results:
 
 - `reproduced`
@@ -167,6 +189,8 @@ At most five, each proven. A finding comes out of proving a claim:
 
 - a claim that failed, reproduced by a probe or a run;
 - a fix whose test still passes with the fix reverted;
+- an existing test the PR changed whose base version fails at `H`, for a
+  change the PR does not state (3i);
 - a stale fact in the description that a reviewer would rely on;
 - a mismatch found while checking a claim, such as a contract that
   documents less than the code returns.
