@@ -96,6 +96,25 @@ pre-existing, a Checked line and not a finding.
 **b. Behaviour with a test.** Find the test that pins the behaviour, read its
 assertions, run it. A test that a no-op would also pass does not count.
 
+New tests — do they need the PR's code? Take every test the PR adds: new
+test files, and new test functions in changed ones (test and non-test paths
+per the profile's Test files). Revert the PR's non-test code, keep its
+tests, and run only those new tests:
+
+```bash
+git -C "${WT:?}" diff "${B:?}" "${H:?}" -- <non-test paths> | git -C "${WT:?}" apply -R
+# run the new tests: expect FAIL or no compile
+git -C "${WT:?}" checkout -- . && git -C "${WT:?}" clean -fdq
+git -C "${WT:?}" status --porcelain     # must print nothing
+```
+
+- It fails, or does not compile: the test depends on the change. Nothing to
+  write.
+- It passes, and the PR states the code it tests is unchanged (a refactor,
+  "no behaviour change"): that is the claim's evidence, `reproduced`.
+- It passes otherwise: the test pins nothing the PR changed — it checks
+  values it built itself, or code that was already there. That is a finding.
+
 **c. Fix commits — does the test fail without the fix?** For each commit
 that changes non-test code and claims a fix (test and non-test paths per the
 profile's Test files):
@@ -188,6 +207,7 @@ row also gets a Not checked item.
 At most five, each proven. A finding comes out of proving a claim:
 
 - a claim that failed, reproduced by a probe or a run;
+- a new test that passes with the PR's non-test code reverted (3b);
 - a fix whose test still passes with the fix reverted;
 - an existing test the PR changed whose base version fails at `H`, for a
   change the PR does not state (3i);
