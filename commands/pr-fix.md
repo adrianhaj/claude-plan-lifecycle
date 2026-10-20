@@ -76,8 +76,7 @@ user's *replies* inside threads started by someone else.
 **Comments containing `<!-- plan-lifecycle:review-stack -->` are not
 self-notes**, though they sit under the user's account: `/review-stack
 --comment` posted them from an automated review. Treat each like an external
-reviewer's comment, with `review-stack` as the reviewer. `/review-stack`
-verified it before posting, so Step 2's verifier skips it. The marked
+reviewer's comment, with `review-stack` as the reviewer. The marked
 review's body holds the findings on files outside the diff; each of those is
 a comment too.
 
@@ -86,9 +85,13 @@ a comment too.
 **Verify the comments first.** Pick the comments to verify by the rules
 `/plan-lifecycle:verify-findings` uses for a PR number (its `## The
 findings`), from what Step 1 fetched: the first comment of each open, current
-thread, by anyone, except the `review-stack` ones. In a pr-fix-loop round
-after the first, take only comments created after the previous round's push.
-In a single message, launch one `general-purpose` agent per PR in
+thread, by anyone. In a pr-fix-loop round after the first, take only comments
+created after the previous round's push. Leave out a comment `GUIDANCE`
+already decides (see **Apply `GUIDANCE` first** below): a guidance pre-ruling
+always wins over a verdict. Fetch each PR's head and base so the verifier can
+read them without a checkout:
+`git fetch origin <baseRefName> pull/<PR>/head`. Then, in a single message,
+launch one `general-purpose` agent per PR in
 `TARGET_PRS` that has any, with the prompt in the `## Verifier prompt`
 section of `${CLAUDE_PLUGIN_ROOT}/commands/verify-findings.md`, filled in
 from that PR's **PR** or **Stacked PR** row, with its `(comments)` lines. The
@@ -217,6 +220,7 @@ Format (one block per PR in stack mode, bottom-up):
 - <file:line> [<reviewer>]: <comment summary>
   → <what you changed, in one line>   (in #<M> when it landed in a lower slice)
   → Suggested reply: "<short factual reply text>"
+  → Verifier rejected it: <evidence>   (only for your own note fixed despite a REJECTED verdict)
 
 ### Pushed back
 - <file:line> [<reviewer>]: <comment summary>

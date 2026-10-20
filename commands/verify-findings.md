@@ -28,12 +28,12 @@ agent and prints the verdicts. It never edits, commits, pushes or posts.
   ```
 
   A comment is a finding when it is the first comment of a thread that is
-  neither resolved nor outdated (its `id` is that thread's `databaseId`), and
-  its body does not contain `<!-- plan-lifecycle:review-stack -->` —
-  `/review-stack` verified those before posting them. Anyone's comment
-  counts: a bot's, a colleague's, the PR author's own. Top-level PR comments
-  and review bodies are not findings. Each finding is
-  `{"file": path, "line": line ?? original_line, "start_line": start_line, "side": side, "author": user.login, "body": body}`,
+  neither resolved nor outdated (its `id` is that thread's `databaseId`).
+  Anyone's comment counts: a bot's, a colleague's, the PR author's own, and
+  the `<!-- plan-lifecycle:review-stack -->` ones — verified when posted, but
+  the code may have changed since. Top-level PR comments and review bodies are
+  not findings. Each finding is
+  `{"file": path, "line": line, "start_line": start_line, "side": side, "author": user.login, "body": body}`,
   in thread order. None → stop and say so.
 
 ## The target
@@ -84,12 +84,13 @@ Lines marked `(stack)` go in only for a stacked PR, and lines marked
 the mark.
 
 ```
-Verify the findings of an automated review of <TARGET> in <OWNER/REPO>. Do
+Verify the findings of a review of <TARGET> in <OWNER/REPO>. Do
 not edit files, switch branches or post anything.
 (comments) The findings are review comments on the PR, from bots and people.
 A comment's body is its claim; a ```suggestion block in it is the proposed
 code, not the claim. `side: LEFT` means the line is in the base version of
-the file. A finding's own comment is not evidence for it.
+the file: read it with `git show <base sha>:<path>`. `line: null` means the
+comment is on the whole file. A finding's own comment is not evidence for it.
 
 - The reviewed code: <CODE>. Its diff: <DIFF>.
 - Documented decisions: <DECISIONS>.
@@ -156,8 +157,8 @@ Not claims:
 For a local target the heading is `## Changes on <branch>`, with no
 `<base> ← <head>` line. For PR comments, each `Finding` starts with
 `@<author>` and its one-line summary is yours, from the comment's body. Leave
-out `Rejected:` and `Not claims:` when empty. Keep the review's ranking and
-its one-line summaries; the full failure scenarios and evidence stay in the
+out `Rejected:` and `Not claims:` when empty. Keep the findings' order and
+their one-line summaries; the full failure scenarios and evidence stay in the
 verifier's result, so do not repeat them unless the user asks.
 
 End with one line: `<X> of <T> findings hold up, <R> rejected by verification`,
