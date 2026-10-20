@@ -76,11 +76,35 @@ user's *replies* inside threads started by someone else.
 **Comments containing `<!-- plan-lifecycle:review-stack -->` are not
 self-notes**, though they sit under the user's account: `/review-stack
 --comment` posted them from an automated review. Treat each like an external
-reviewer's comment, with `review-stack` as the reviewer — verify it, then
-bucket it. The marked review's body holds the findings on files outside the
-diff; each of those is a comment too.
+reviewer's comment, with `review-stack` as the reviewer. `/review-stack`
+verified it before posting, so Step 2's verifier skips it. The marked
+review's body holds the findings on files outside the diff; each of those is
+a comment too.
 
 ## Step 2 — Classify and plan
+
+**Verify the comments first.** Pick the comments to verify by the rules
+`/plan-lifecycle:verify-findings` uses for a PR number (its `## The
+findings`), from what Step 1 fetched: the first comment of each open, current
+thread, by anyone, except the `review-stack` ones. In a pr-fix-loop round
+after the first, take only comments created after the previous round's push.
+In a single message, launch one `general-purpose` agent per PR in
+`TARGET_PRS` that has any, with the prompt in the `## Verifier prompt`
+section of `${CLAUDE_PLUGIN_ROOT}/commands/verify-findings.md`, filled in
+from that PR's **PR** or **Stacked PR** row, with its `(comments)` lines. The
+verdicts seed the buckets:
+
+| Verdict | Bucket |
+|---|---|
+| CONFIRMED / PLAUSIBLE | Actionable — Self-note for the user's own comment; Nit when the kind is `nit` |
+| REJECTED, a slice above fixed it | Stale, `fixed in #<M>` |
+| REJECTED, any other reason | Pushback, with the verifier's quoted evidence as the drafted reply. For the user's own comment: Self-note marked `rejected: <evidence>`, no reply — the user decides at approval |
+| NOT_A_CLAIM | Classify it as below |
+
+A verdict overrides a reviewer's `**blocking**:` prefix; a `nit:` prefix
+still makes the item a Nit. If an agent fails or returns the wrong number of
+verdicts, classify that PR's comments as below and mark their rows
+`unverified`.
 
 Sort each remaining comment into one bucket:
 
@@ -95,10 +119,11 @@ Sort each remaining comment into one bucket:
 | **Stale** | Comment is on code that's since been changed — in stack mode, also code a higher slice already fixed | Skip, note it |
 
 Severity prefixes from automated reviewers (`**blocking**:`, `nit:`,
-`suggestion:`) seed the bucket — `blocking` is Actionable unless verification
-shows it wrong (then Pushback, with the evidence); `nit` is Nit.
+`suggestion:`) seed the bucket of a comment the verifier did not judge —
+`blocking` is Actionable unless you find it wrong (then Pushback, with the
+evidence); `nit` is Nit.
 
-**Before classifying, invoke the `superpowers:receiving-code-review` skill via the `Skill` tool.** That skill owns the verify-before-implementing discipline, YAGNI checks, and pushback patterns — do not re-derive them here. Posting is governed by the hard rules below, not by that skill's "GitHub Thread Replies" section. If the skill is not available (superpowers plugin not installed), proceed without it and apply the same discipline yourself: verify each claim against the code before implementing, and push back with technical reasoning instead of performative agreement.
+**Before classifying, invoke the `superpowers:receiving-code-review` skill via the `Skill` tool.** The verifier's verdict is the verification of each claim it judged; the skill owns YAGNI checks, pushback patterns, and the verify-before-implementing discipline for the comments the verifier did not judge (NOT_A_CLAIM, `unverified`) — do not re-derive them here. Posting is governed by the hard rules below, not by that skill's "GitHub Thread Replies" section. If the skill is not available (superpowers plugin not installed), proceed without it and apply the same discipline yourself: verify each claim against the code before implementing, and push back with technical reasoning instead of performative agreement.
 
 **Stack mode — which slice owns the fix.** Default: the PR the comment sits
 on. Move a code change *down* the stack when the commented code was
@@ -127,7 +152,7 @@ Present the full plan to the user as a table (the PR column appears only in
 stack mode):
 
 ```
-| # | PR | File:Line | Reviewer | Bucket | Proposed action |
+| # | PR | File:Line | Reviewer | Verdict | Bucket | Proposed action |
 ```
 
 Wait for user approval before any code changes. The user may redirect individual rows ("don't do 3, push back instead", "skip 7, it's stale", "keep 5 in #3643"). Apply their changes to the plan.

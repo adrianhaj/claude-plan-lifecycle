@@ -1,27 +1,47 @@
 ---
-description: Verify the findings of the latest /code-review in this session — one agent checks each finding against the reviewed code, the PR body, the ADRs and CLAUDE.md files, the PR's commit messages and review threads and, on a stacked PR, the slices above, by the same rules /review-stack uses — then print each as confirmed, plausible or rejected. Read-only.
+description: Verify the findings of the latest /code-review in this session, or with a PR number the open review comments on that PR — one agent checks each finding against the reviewed code, the PR body, the ADRs and CLAUDE.md files, the PR's commit messages and review threads and, on a stacked PR, the slices above, by the same rules /review-stack uses — then print each as confirmed, plausible or rejected. Read-only.
+argument-hint: [PR number — optional; verifies that PR's open review comments instead of the latest /code-review]
 ---
 
 # Verify Findings
 
-Check whether the findings of a `/code-review` hold up. `/code-review` takes
-no context beyond its target, so it cannot know what the PR body, the ADRs,
-the PR's commits and review threads or the slices above already settle. This
-command hands its findings to one verifier agent and prints the verdicts. It
-never edits, commits, pushes or posts.
+Check whether the findings of a `/code-review`, or the review comments on a
+PR, hold up. A reviewer — `/code-review`, a CI bot or a person — cannot know
+everything the PR body, the ADRs, the PR's commits and review threads or the
+slices above already settle. This command hands the findings to one verifier
+agent and prints the verdicts. It never edits, commits, pushes or posts.
 
 ## The findings
 
-Take the most recent `/code-review` in this conversation: the target it
-reviewed, and its findings — `file`, `line`, `summary` and `failure_scenario`
-of each, most severe first. If there is no review in this conversation, or it
-found nothing, stop and say so.
+`$ARGUMENTS` is empty or one PR number.
+
+- **Empty** — take the most recent `/code-review` in this conversation: the
+  target it reviewed, and its findings — `file`, `line`, `summary` and
+  `failure_scenario` of each, most severe first. If there is no review in this
+  conversation, or it found nothing, stop and say so.
+- **A PR number** — the findings are that PR's review comments (`OWNER/REPO`
+  as resolved under The target):
+
+  ```bash
+  gh api "repos/OWNER/REPO/pulls/<N>/comments" --paginate
+  gh api graphql --paginate -F o=OWNER -F r=REPO -F n=<N> -f query='query($o:String!,$r:String!,$n:Int!,$endCursor:String){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100,after:$endCursor){pageInfo{hasNextPage endCursor} nodes{isResolved isOutdated comments(first:1){nodes{databaseId}}}}}}}'
+  ```
+
+  A comment is a finding when it is the first comment of a thread that is
+  neither resolved nor outdated (its `id` is that thread's `databaseId`), and
+  its body does not contain `<!-- plan-lifecycle:review-stack -->` —
+  `/review-stack` verified those before posting them. Anyone's comment
+  counts: a bot's, a colleague's, the PR author's own. Top-level PR comments
+  and review bodies are not findings. Each finding is
+  `{"file": path, "line": line ?? original_line, "start_line": start_line, "side": side, "author": user.login, "body": body}`,
+  in thread order. None → stop and say so.
 
 ## The target
 
 Resolve `OWNER/REPO` once: `gh repo view --json nameWithOwner -q .nameWithOwner`.
 
-- **The review was given a PR** (number or URL). Read
+- **The review was given a PR** (number or URL), or the findings are a PR's
+  comments. Read
   `gh pr view <N> --json title,baseRefName,headRefName,headRefOid` — the
   head is `<sha>` — and
   find its stack per `${CLAUDE_PLUGIN_ROOT}/references/stack-discovery.md`
@@ -59,11 +79,17 @@ Fill the placeholders from the target's row:
   `<base sha>` is the head sha of the open slice below — as **PR** for the
   lowest open slice.
 
-Lines marked `(stack)` go in only for a stacked PR, without the mark.
+Lines marked `(stack)` go in only for a stacked PR, and lines marked
+`(comments)` only when the findings are a PR's review comments; both without
+the mark.
 
 ```
 Verify the findings of an automated review of <TARGET> in <OWNER/REPO>. Do
 not edit files, switch branches or post anything.
+(comments) The findings are review comments on the PR, from bots and people.
+A comment's body is its claim; a ```suggestion block in it is the proposed
+code, not the claim. `side: LEFT` means the line is in the base version of
+the file. A finding's own comment is not evidence for it.
 
 - The reviewed code: <CODE>. Its diff: <DIFF>.
 - Documented decisions: <DECISIONS>.
@@ -90,14 +116,17 @@ before you give CONFIRMED or PLAUSIBLE, then give a verdict:
     still matches it, and if a later commit reverses it, the commit wins;
   - (stack) a slice above already fixes it or rules it out ("fixed in #<M>",
     quote the line at the top).
+- (comments) NOT_A_CLAIM: the comment asserts no defect — a question, a
+  preference, or a request such as "extract this block". Kind `nit`.
 and a kind: `bug` (wrong behaviour) or `nit` (cleanup, naming, duplication,
 style, test tidiness, or a cost with no observable effect).
 
 Return only a JSON array, one object per finding, in the given order:
 [{"verdict": "CONFIRMED|PLAUSIBLE|REJECTED", "kind": "bug|nit", "evidence": "<one or two sentences with the quote>"}]
+(comments) NOT_A_CLAIM is also a valid verdict.
 
 Findings:
-<the review's findings as a JSON array: file, line, summary, failure_scenario>
+<the findings as a JSON array: file, line, summary, failure_scenario — for PR comments: file, line, start_line, side, author, body>
 ```
 
 ## Verify
@@ -119,13 +148,18 @@ say the findings are unverified and stop.
 
 Rejected:
 - `path/to/file.go:88` <one-line summary> — <the verifier's reason, e.g. fixed in #M, or the ADR that records it>
+
+Not claims:
+- `path/to/file.go:52` @<author> <one-line summary>
 ```
 
 For a local target the heading is `## Changes on <branch>`, with no
-`<base> ← <head>` line. Leave out `Rejected:` when none were. Keep the
-review's ranking and its one-line summaries; the full failure scenarios and
-evidence stay in the verifier's result, so do not repeat them unless the user
-asks.
+`<base> ← <head>` line. For PR comments, each `Finding` starts with
+`@<author>` and its one-line summary is yours, from the comment's body. Leave
+out `Rejected:` and `Not claims:` when empty. Keep the review's ranking and
+its one-line summaries; the full failure scenarios and evidence stay in the
+verifier's result, so do not repeat them unless the user asks.
 
 End with one line: `<X> of <T> findings hold up, <R> rejected by verification`,
-counting confirmed and plausible findings in `<X>`.
+counting confirmed and plausible findings in `<X>` and leaving NOT_A_CLAIM
+out of `<T>`; for PR comments add `, <Q> not claims`.
