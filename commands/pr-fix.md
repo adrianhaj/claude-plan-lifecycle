@@ -1,7 +1,6 @@
 ---
 description: Address PR review feedback — fetch comments, plan fixes, implement, push, then summarize for the user to post replies. Accepts a PR number or a GitHub stack number; on a stacked PR it fixes each comment in the slice that owns the code and restacks the branches above.
 argument-hint: [PR or stack number — optional, auto-detects from current branch] [free-text guidance for the fixes]
-model: sonnet
 ---
 
 # PR Fix

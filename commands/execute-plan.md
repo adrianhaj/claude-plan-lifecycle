@@ -1,8 +1,6 @@
 ---
 description: "Execute a plan from the plans dir in this worktree — implement, verify, open a draft PR (a stacked chain for '## PR N:' slices) and stamp the plan."
 argument-hint: [plan-path — optional, auto-detected from branch name]
-model: opus
-effort: high
 ---
 
 # Execute Plan
