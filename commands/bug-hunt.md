@@ -1,7 +1,6 @@
 ---
 description: Autonomous red-green-refactor bug hunter with reviewer subagent gate
 argument-hint: <issue text, Slack thread, or bug report>
-model: sonnet
 ---
 
 # Autonomous Bug Hunter
