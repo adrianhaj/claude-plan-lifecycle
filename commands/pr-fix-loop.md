@@ -14,7 +14,9 @@ Invoke the `loop` skill via the `Skill` tool now, with **no interval** (self-pac
 
 - Don't wait for my approval on the plan table. Apply your recommended bucket for
   each item — my guidance in the arguments above takes precedence over your own
-  classification and holds for every round. Pushbacks and questions stay as drafted replies in the summary — never
+  classification and holds for every round. A self-note the verifier
+  rejected stays a Self-note and is fixed; list it with its `rejected:`
+  evidence in the summary so I can revert it. Pushbacks and questions stay as drafted replies in the summary — never
   post anything to GitHub. All of pr-fix's hard rules still apply (no GitHub
   mutations, no force push, no auto-merge).
 - Stacked PRs: when pr-fix hands off to /restack, answer its push gate with
