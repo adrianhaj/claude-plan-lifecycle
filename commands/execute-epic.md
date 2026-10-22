@@ -29,6 +29,8 @@ On any failure, stop with the message.
    `superpowers:subagent-driven-development` /
    `superpowers:executing-plans` are in the available-skills list, else:
    "The superpowers plugin is required (https://github.com/obra/superpowers)."
+4. `command -v link-plans stamp-plans` finds both, else: "link-plans and
+   stamp-plans must be on PATH; see the README's Install section."
 
 Resolve once:
 
@@ -37,6 +39,7 @@ OWNER_REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 ROOT="$(git rev-parse --show-toplevel)"
 DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)"
 PLANS_DIR="${PLANS_DIR:-$(git config --get plans.dir 2>/dev/null || echo local/plans)}"
+mkdir -p "$PLANS_DIR"
 PLANS_DIR="$(realpath "$PLANS_DIR")"
 git fetch origin "$DEFAULT_BRANCH"
 BASE="$(git rev-parse "origin/$DEFAULT_BRANCH")"
@@ -47,29 +50,31 @@ agree.
 
 ## Step 2 — Read the epic
 
-`$ARGUMENTS`: the first token is the epic (`N`, `#N` or `owner/repo#N`).
-When the second token is an existing file it is `NOTES`, decisions that
-override the issue text. Any other text is guidance, read like `NOTES`.
+`$ARGUMENTS`: the first token is the epic (`N`, `#N` or `owner/repo#N`);
+`EPIC_REPO` is its `owner/repo`, else `OWNER_REPO`. When the second token
+is an existing file it is `NOTES`, decisions that override the issue text.
+Any other text is guidance, read like `NOTES`.
 
 ```bash
-gh issue view <N> --json number,title,body,state,comments
-gh api "repos/$OWNER_REPO/issues/<N>/sub_issues" --paginate \
+gh issue view <N> -R "$EPIC_REPO" --json number,title,body,state,comments
+gh api "repos/$EPIC_REPO/issues/<N>/sub_issues" --paginate \
   --jq '.[] | {number, title, state, repo: .repository.full_name}'
 ```
 
 No sub-issues → take the children from the epic body's task list
-(`- [ ] #123`, `- [x] owner/repo#123`). No children either way → stop:
-"Epic #<N> lists no child issues."
+(`- [ ] #123`, `- [x] owner/repo#123`; a bare `#123` is in `EPIC_REPO`). No
+children either way → stop: "Epic #<N> lists no child issues."
 
-Read every child in full, comments included:
+Set aside as **skipped**, with the reason: closed children and children
+filed in a repository other than `OWNER_REPO`. Read every other child in
+full, comments included:
 
 ```bash
 gh issue view <n> --json number,title,body,comments,closedByPullRequestsReferences
 gh pr view <M> --json state    # each PR in closedByPullRequestsReferences
 ```
 
-Set aside as **skipped**, with the reason: closed children, children with a
-merged PR, children filed in another repository, and children whose
+Skip as well, with the reason: children with a merged PR and children whose
 changes all live in another repository.
 
 ## Step 3 — Lay out the chains and get approval
@@ -111,17 +116,17 @@ Epic #<N> <title> — <K> chains from <BASE short sha>, worktrees under <parent 
 
 | Chain | Issues (stack order) | Branch | Prefix | Reserved |
 |-------|----------------------|--------|--------|----------|
-| A | #279 | ah/scheduler-window-lag | swl | — |
-| B | #278 → #281 | ah/sustained-drift-previous-window | sdp | ADR-0027, ADR-0029; DriftMonitor 17–18 |
+| A | #41 | alice/retry-backoff | rb | — |
+| B | #42 → #45 | alice/order-export | oe | ADR-0012, ADR-0014; Order 9–10 |
 
 Decisions:
 - B: <decision>
 
 Overlaps (resolved by /restack at merge):
-- B, C: drift.go `supportedMethods` rows
+- B, C: orders.go `validate()`
 
 Skipped:
-- #283 — changes live in h2o-ai-cloud
+- #47 — changes live in example-org/web-app
 ```
 
 A child with an open PR from `closedByPullRequestsReferences` stays in its
@@ -142,19 +147,23 @@ git worktree add -b "<BRANCH>" "<WT>" "$BASE"
 link-plans "<WT>"
 ```
 
-If `WT` or `BRANCH` already exists, that chain fails with "worktree or
-branch exists — resume with /execute-plan in <WT>" and the others continue.
+If `WT` or `BRANCH` already exists, or either command fails, that chain
+fails with the reason ("worktree or branch exists — resume with
+/execute-plan in <WT>") and the others continue.
 
 ## Step 5 — Write the plans
 
-In a single message, launch one `general-purpose` agent per chain with the
+In a single message, launch one `general-purpose` agent per chain that
+Step 4 set up with the
 `Agent` tool, in the background, each with the **Plan writer prompt**
 filled in.
 
 As each writer reports, check its chain's plan: `PLAN_PATH` exists, opens
-with frontmatter, and — for a chain of more than one child — the writer's
-slice map gives every child a closing slice. A plan that fails marks the
-chain failed with the reason; no executor runs for it.
+with frontmatter, and — for a chain of more than one child — its slice map
+gives every child a closing slice. A plan that fails marks the chain failed
+with the reason; no executor runs for it. A writer that needed numbers
+beyond its reservation gets the next free ones after every chain's
+reservation: put them in the plan and name them in the plan question.
 
 A plan that passes goes to the user, without waiting for the other writers.
 Print the chain, `PLAN_PATH` and the writer's reply (task count, slice map,
@@ -181,10 +190,10 @@ Epic #<N> <title> — <K> chains from <BASE short sha>
 
 | Chain | Issues | PRs | Test/lint | Status |
 |-------|--------|-----|-----------|--------|
-| A | #279 | #290 | passed | done |
-| C | #277 → #285 → #280 | #291, #292 | slice 3 red | stopped: <executor's message> |
+| A | #41 | #50 | passed | done |
+| C | #43 → #44 → #46 | #51, #52 | slice 3 red | stopped: <executor's message> |
 
-Skipped: #283 (changes live in h2o-ai-cloud)
+Skipped: #47 (changes live in example-org/web-app)
 Plans: <PLAN_PATH per chain>
 Follow-ups: <stub path per chain that wrote one>
 Out of scope: <other-repo work the writers listed>
@@ -217,6 +226,8 @@ constraints, so the executor needs no other file):
 
 Reserved numbers (use exactly these; other chains hold the others):
 <this chain's reserved numbers, or "none">
+If the plan needs more numbers of a kind than reserved, leave a
+placeholder such as `<ADR-NEXT>` and name the need in your reply.
 
 Invoke `superpowers:writing-plans` and `plan-lifecycle:plan-frontmatter`
 with the Skill tool and follow them up to the saved plan; the execution
@@ -225,18 +236,19 @@ once the plan is written. Write the plan to <PLAN_PATH> with frontmatter
 slug `<SLUG>`, issue `<the chain's last issue>`, status `draft`, empty `pr`.
 Slice headings match `^## PR ([0-9]+): (.+)$` with a strict
 Conventional-Commits title.
-<several children: "Each issue is closed by the last slice that implements it: state in the
-plan's constraints which slice's PR body starts with `Closes #<n>` for each issue. This
-replaces plan-frontmatter's tip-only Closes rule for this plan.">
+<several children: "Each issue is closed by the last slice that implements it. Put the
+slice map in the plan's constraints, one line per slice (`PR 2: closes #b`, `PR 1: no
+Closes`): the PR body of a closing slice starts with `Closes #<n>`. This replaces
+plan-frontmatter's tip-only Closes rule for this plan.">
 A task that needs a skill names it and says to invoke it with the Skill
 tool: the executor's subagents load only the skills a task names. The plan
 covers code in this repository and the chain's own PRs; work an issue asks
 for elsewhere (another repository, a comment or edit on another issue) is
 out of scope: leave it out of the plan and list it in your reply.
 
-Reply in at most 12 lines: plan path, task count, the slice map
-(`PR 1 → #a`, `PR 2 → #a (closes)`, …), each ambiguity in the issues you
-resolved, and the out-of-scope work.
+Reply in at most 12 lines: plan path, task count, the slice map, each
+ambiguity in the issues you resolved, numbers needed beyond the
+reservation, and the out-of-scope work.
 ```
 
 ## Executor prompt
@@ -263,9 +275,9 @@ skill would ask a person: stack prefix `<PREFIX>`; for anything else take
 the recommended option, or the safest one when none is marked, and record
 it as a ruling. Where they say to stop (a red check, a rejected push), stop
 and report.
-<several children: "Slice map: <the writer's slice map>. The PR of each issue's closing
-slice starts its body with `Closes #<n>`, in place of the tip-only rule; every other
-slice carries no Closes line.">
+<several children: "The plan's slice map says which slice closes which issue: that
+slice's PR body starts with `Closes #<n>`, in place of execute-plan's tip-only rule;
+every other slice carries no Closes line.">
 
 Other chains run their test suites on this machine at the same time. If a
 check fails with a sign of contention (port in use, lock held, timeout),
@@ -282,8 +294,11 @@ message if execute-plan stopped.
   (Step 5); no chain executes without both. Executors answer their own
   questions with the recommended option.
 - **Branches.** The main session creates each chain's worktree and
-  placeholder branch; each executor creates its chain's slice branches
-  through `/execute-plan`; no other agent creates a branch.
+  placeholder branch. Each executor creates its chain's slice branches
+  through `/execute-plan`, as the main session of that chain: a slice
+  branch starts from the slice below's commits, which exist only once that
+  slice has run, so they cannot be created up front. No other agent creates
+  a branch.
 - **GitHub.** This session only reads. The only writes are each executor's
   `/execute-plan` ones: draft PRs, the stack link and those PRs' bodies. No
   merges, comments, issue edits or epic updates.

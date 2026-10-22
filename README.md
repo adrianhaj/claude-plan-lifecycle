@@ -146,6 +146,7 @@ it.
   `superpowers:receiving-code-review` when present and degrades gracefully without it.
 - **Built-in skills** — `/review-stack` and `/verify-findings` run on the built-in `/code-review`;
   `/pr-fix-loop` runs on the built-in `/loop`.
+- **`Agent` tool** — `/execute-epic` runs one plan writer and one executor per chain as parallel subagents, and needs `link-plans` and `stamp-plans` on your PATH.
 - **Test and lint verify commands** — declare them in the repo's CLAUDE.md, or provide `make test`
   / `make lint` targets (the default). `/execute-plan` and `/restack` refuse to open/push anything
   unverified.
