@@ -39,6 +39,7 @@ OWNER_REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 ROOT="$(git rev-parse --show-toplevel)"
 DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)"
 PLANS_DIR="${PLANS_DIR:-$(git config --get plans.dir 2>/dev/null || echo local/plans)}"
+case "$PLANS_DIR" in /*) ;; *) PLANS_DIR="$ROOT/$PLANS_DIR" ;; esac
 mkdir -p "$PLANS_DIR"
 PLANS_DIR="$(realpath "$PLANS_DIR")"
 git fetch origin "$DEFAULT_BRANCH"
@@ -58,7 +59,7 @@ Any other text is guidance, read like `NOTES`.
 ```bash
 gh issue view <N> -R "$EPIC_REPO" --json number,title,body,state,comments
 gh api "repos/$EPIC_REPO/issues/<N>/sub_issues" --paginate \
-  --jq '.[] | {number, title, state, repo: .repository.full_name}'
+  --jq '.[] | {number, title, state, repo: (.repository_url | sub(".*/repos/"; ""))}'
 ```
 
 No sub-issues → take the children from the epic body's task list
@@ -71,7 +72,7 @@ full, comments included:
 
 ```bash
 gh issue view <n> --json number,title,body,comments,closedByPullRequestsReferences
-gh pr view <M> --json state    # each PR in closedByPullRequestsReferences
+gh pr view <url> --json state  # each PR in closedByPullRequestsReferences; the url keeps its repository
 ```
 
 Skip as well, with the reason: children with a merged PR and children whose
@@ -95,13 +96,19 @@ changes and the ones it needs.
 - **Reserved numbers.** Chains cannot see each other's branches, so
   anything the repo numbers sequentially is assigned now: ADR numbers, DB
   migration numbers, field numbers of a proto message and values of a
-  proto enum that more than one chain extends. Take the next free numbers
-  after the highest at `BASE` and hand them out in chain order.
+  proto enum that more than one chain extends. Open PRs can hold numbers
+  too: list the ADR and migration files they add with
+  `gh pr list --state open --limit 200 --json number,files`. Take the next
+  free numbers after the highest at `BASE` or on an open PR, and hand them
+  out in chain order. Migrations apply in merge order, so when more than
+  one chain adds one, set a **merge order** for those chains (fewest
+  slices first) and number their migrations in it.
 - **Decisions.** From the epic's body and comments, `NOTES` and the
   guidance: the decisions each chain's plan must follow, worded so they
   stand alone. The epic's own rulings (an order, a pre-assigned number, a
   "fold into the existing migration") count.
-- **Names.** Per chain: a kebab-case `SLUG` naming its theme; `BRANCH` =
+- **Names.** Per chain: a kebab-case `SLUG` naming its theme, unique across
+  the chains (it names the branch, the worktree and the plan); `BRANCH` =
   `<ns>/<SLUG>`, `<ns>` being the branch namespace the user's CLAUDE.md
   prescribes; `WT`, the worktree path where the user's CLAUDE.md puts
   worktrees, else `<parent of ROOT>/worktrees/<repo name>/<BRANCH with / as ->`;
@@ -125,13 +132,15 @@ Decisions:
 Overlaps (resolved by /restack at merge):
 - B, C: orders.go `validate()`
 
+Merge order (migrations): B → C
+
 Skipped:
 - #47 — changes live in example-org/web-app
 ```
 
 A child with an open PR from `closedByPullRequestsReferences` stays in its
 chain, marked `(open PR #M)` in the Issues column, so the user can drop it.
-Leave out `Decisions:`, `Overlaps` and `Skipped:` when empty.
+Leave out `Decisions:`, `Overlaps`, `Merge order` and `Skipped:` when empty.
 
 Then ask with `AskUserQuestion` (header "Epic"): "Run these <K> chains?"
 with the options "Run (Recommended)" and "Cancel". A reply through Other is
@@ -147,8 +156,8 @@ git worktree add -b "<BRANCH>" "<WT>" "$BASE"
 link-plans "<WT>"
 ```
 
-If `WT` or `BRANCH` already exists, or either command fails, that chain
-fails with the reason ("worktree or branch exists — resume with
+If `WT`, `BRANCH` or `PLAN_PATH` already exists, or either command fails,
+that chain fails with the reason ("worktree or branch exists — resume with
 /execute-plan in <WT>") and the others continue.
 
 ## Step 5 — Write the plans
@@ -159,8 +168,9 @@ Step 4 set up with the
 filled in.
 
 As each writer reports, check its chain's plan: `PLAN_PATH` exists, opens
-with frontmatter, and — for a chain of more than one child — its slice map
-gives every child a closing slice. A plan that fails marks the chain failed
+with frontmatter, and — for a chain of more than one child — its `Closes:`
+lines name every child exactly once and its tip slice closes the
+frontmatter `issue`. A plan that fails marks the chain failed
 with the reason; no executor runs for it. A writer that needed numbers
 beyond its reservation gets the next free ones after every chain's
 reservation: put them in the plan and name them in the plan question.
@@ -197,13 +207,14 @@ Skipped: #47 (changes live in example-org/web-app)
 Plans: <PLAN_PATH per chain>
 Follow-ups: <stub path per chain that wrote one>
 Out of scope: <other-repo work the writers listed>
+Merge order (migrations): B → C — merging out of order means renumbering the later migration first
 Next: /plan-lifecycle:review-stack <stack or PR number> per chain.
 ```
 
 For a stopped or held chain add its resume line: `cd <WT>` then
 `/plan-lifecycle:execute-plan <PLAN_PATH>`; the resume check skips slices
-already pushed. Where an executor reported contention, say so: its check
-may pass when re-run alone.
+already pushed. Where an executor reported contention (a busy port, a git
+`.lock` file, a timeout), say so: re-running that chain alone should pass.
 
 ## Plan writer prompt
 
@@ -216,7 +227,7 @@ Chain <X>: <issues in stack order>. Slice the plan with `## PR N:` headings
 <single child: "only if plan-frontmatter's size rule calls for it"
  | several: "so each issue gets one or more consecutive slices, in this order">.
 
-Read in full first: `gh issue view <N> --comments` (the epic), then
+Read in full first: `gh issue view <N> -R <EPIC_REPO> --comments` (the epic), then
 `gh issue view <n> --comments` for each chain issue; <NOTES, or "no notes file">;
 the repo's CLAUDE.md, its ADR titles, and every source file the issues reference.
 
@@ -236,10 +247,10 @@ once the plan is written. Write the plan to <PLAN_PATH> with frontmatter
 slug `<SLUG>`, issue `<the chain's last issue>`, status `draft`, empty `pr`.
 Slice headings match `^## PR ([0-9]+): (.+)$` with a strict
 Conventional-Commits title.
-<several children: "Each issue is closed by the last slice that implements it. Put the
-slice map in the plan's constraints, one line per slice (`PR 2: closes #b`, `PR 1: no
-Closes`): the PR body of a closing slice starts with `Closes #<n>`. This replaces
-plan-frontmatter's tip-only Closes rule for this plan.">
+<several children: "Each issue is closed by the last slice that implements it: put a
+`Closes: #<n>` line under that slice's heading, as plan-frontmatter's PR slicing
+section describes, so every issue of the chain is declared exactly once and the
+tip slice declares the frontmatter issue.">
 A task that needs a skill names it and says to invoke it with the Skill
 tool: the executor's subagents load only the skills a task names. The plan
 covers code in this repository and the chain's own PRs; work an issue asks
@@ -275,13 +286,11 @@ skill would ask a person: stack prefix `<PREFIX>`; for anything else take
 the recommended option, or the safest one when none is marked, and record
 it as a ruling. Where they say to stop (a red check, a rejected push), stop
 and report.
-<several children: "The plan's slice map says which slice closes which issue: that
-slice's PR body starts with `Closes #<n>`, in place of execute-plan's tip-only rule;
-every other slice carries no Closes line.">
 
-Other chains run their test suites on this machine at the same time. If a
-check fails with a sign of contention (port in use, lock held, timeout),
-say so in your report.
+Other chains run git and their test suites on this machine at the same
+time. A git command that fails on a `.lock` file was racing another
+chain's git: re-run it once. If a check fails with a sign of contention
+(port in use, lock held, timeout), say so in your report.
 
 Reply in at most 20 lines: per PR its URL, branch, head SHA (from git) and
 test/lint result; then the rulings, the follow-ups stub path, and the stop
