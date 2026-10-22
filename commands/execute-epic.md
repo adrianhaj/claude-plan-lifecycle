@@ -1,20 +1,21 @@
 ---
-description: "Execute an epic's child issues as parallel chains — lay out independent chains for one approval, then write one plan per chain and run /execute-plan on every chain at once, each in its own worktree."
+description: "Execute an epic's child issues as parallel chains — lay out independent chains for approval, write one plan per chain, and run /execute-plan on each chain as soon as you approve its plan, each in its own worktree."
 argument-hint: <epic issue number> [notes file — decisions that override the issue text]
 ---
 
 # Execute Epic
 
-Turn an epic into draft PRs with one approval. The child issues are grouped
-into **chains**: issues that need each other's code share a chain and become
-one stacked plan; every other issue gets a chain of its own. Every chain
-gets its own worktree, a plan written by one agent, then
-`/plan-lifecycle:execute-plan` run by another, and all chains run at the
-same time. A chain moves from plan to execution as soon as its own plan is
-written, so the run takes as long as its longest chain.
+Turn an epic into draft PRs. The child issues are grouped into **chains**:
+issues that need each other's code share a chain and become one stacked
+plan; every other issue gets a chain of its own. Every chain gets its own
+worktree, a plan written by one agent, then `/plan-lifecycle:execute-plan`
+run by another, and all chains run at the same time.
 
-The approval in Step 3 is the only question. After it the run is
-unattended: each executor takes `/execute-plan`'s recommended option where
+The user approves twice: the chain layout (Step 3), then each chain's plan
+as it lands (Step 5). A chain executes as soon as its own plan is approved,
+while the other plans are still being written or read, so the run takes
+about as long as its longest chain. After a plan's approval its chain runs
+unattended: the executor takes `/execute-plan`'s recommended option where
 it would ask and records that as a ruling in its PR body.
 
 ## Step 1 — Pre-flight
@@ -152,14 +153,22 @@ filled in.
 
 As each writer reports, check its chain's plan: `PLAN_PATH` exists, opens
 with frontmatter, and — for a chain of more than one child — the writer's
-slice map gives every child a closing slice. A plan that passes gets its
-executor launched at once (Step 6), without waiting for the other writers.
-A plan that fails marks the chain failed with the reason; no executor runs
-for it.
+slice map gives every child a closing slice. A plan that fails marks the
+chain failed with the reason; no executor runs for it.
+
+A plan that passes goes to the user, without waiting for the other writers.
+Print the chain, `PLAN_PATH` and the writer's reply (task count, slice map,
+resolved ambiguities, out-of-scope work), then ask with `AskUserQuestion`
+(header "Plan <X>"): "Execute chain <X> with this plan?" with the options
+"Execute (Recommended)" and "Hold". A reply through Other is a change to
+the plan: make it in `PLAN_PATH`, print what changed and ask again.
+Execute → launch the chain's executor at once (Step 6). Hold → the chain
+does not run; the summary gives its resume line. Writers that report while
+a plan is waiting for the user queue behind it, one question at a time.
 
 ## Step 6 — Execute the chains
 
-Per chain whose plan passed, launch one `general-purpose` agent with the
+Per chain whose plan the user approved, launch one `general-purpose` agent with the
 `Agent` tool, in the background, with the **Executor prompt** filled in.
 
 Each agent reports later with a task notification. Wait until every
@@ -182,7 +191,7 @@ Out of scope: <other-repo work the writers listed>
 Next: /plan-lifecycle:review-stack <stack or PR number> per chain.
 ```
 
-For a stopped chain add its resume line: `cd <WT>` then
+For a stopped or held chain add its resume line: `cd <WT>` then
 `/plan-lifecycle:execute-plan <PLAN_PATH>`; the resume check skips slices
 already pushed. Where an executor reported contention, say so: its check
 may pass when re-run alone.
@@ -269,8 +278,9 @@ message if execute-plan stopped.
 
 ## Hard rules
 
-- **One question.** Step 3's approval is the only one; executors answer
-  their own questions with the recommended option.
+- **Two gates.** The user approves the layout (Step 3) and each plan
+  (Step 5); no chain executes without both. Executors answer their own
+  questions with the recommended option.
 - **Branches.** The main session creates each chain's worktree and
   placeholder branch; each executor creates its chain's slice branches
   through `/execute-plan`; no other agent creates a branch.
