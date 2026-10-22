@@ -113,8 +113,12 @@ changes and the ones it needs.
   prescribes; `WT`, the worktree path where the user's CLAUDE.md puts
   worktrees, else `<parent of ROOT>/worktrees/<repo name>/<BRANCH with / as ->`;
   `PLAN_PATH` = `$PLANS_DIR/<today YYYY-MM-DD>-<SLUG>.md`; `PREFIX`, the
-  first letter of each word of `SLUG` capped at 3, with a digit appended
-  when two chains would share one.
+  first letter of each word of `SLUG` capped at 3, which is how
+  `/execute-plan` names the chain's slice branches. Choose the slugs so
+  every chain's `PREFIX` differs (`on-demand-mode` and `order-data-model`
+  both give `odm`: reword one): chains sharing a prefix can produce the
+  same slice branch name, and `/execute-plan` resumes an existing branch
+  instead of creating its own.
 
 Print the layout:
 
@@ -144,7 +148,8 @@ Leave out `Decisions:`, `Overlaps`, `Merge order` and `Skipped:` when empty.
 
 Then ask with `AskUserQuestion` (header "Epic"): "Run these <K> chains?"
 with the options "Run (Recommended)" and "Cancel". A reply through Other is
-an edit: apply it, print the layout again and ask again. Cancel → stop.
+an edit: apply it, print the layout again and ask again; a new prefix is
+a new slug, still unique in its initials. Cancel → stop.
 
 ## Step 4 — Create the worktrees
 
@@ -282,9 +287,8 @@ session: you create its slice branches as execute-plan says; your own
 subagents create none.
 
 No user is attached to this run. Wherever execute-plan or the execution
-skill would ask a person: stack prefix `<PREFIX>`; for anything else take
-the recommended option, or the safest one when none is marked, and record
-it as a ruling. Where they say to stop (a red check, a rejected push), stop
+skill would ask a person, take the recommended option, or the safest one
+when none is marked, and record it as a ruling. Where they say to stop (a red check, a rejected push), stop
 and report.
 
 Other chains run git and their test suites on this machine at the same
