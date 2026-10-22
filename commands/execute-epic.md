@@ -49,6 +49,12 @@ BASE="$(git rev-parse "origin/$DEFAULT_BRANCH")"
 Every chain starts from `BASE`, so the plans and the code they describe
 agree.
 
+The plans are written to `PLANS_DIR` in this checkout, which never reaches
+a chain's branch. When `PLANS_DIR` is inside `ROOT` and not gitignored
+(`git -C "$ROOT" check-ignore -q "$PLANS_DIR"` fails), stop: "The plans dir
+is tracked in git; /execute-epic needs a gitignored one (e.g. local/plans).
+Run /execute-plan per chain."
+
 ## Step 2 — Read the epic
 
 `$ARGUMENTS`: the first token is the epic (`N`, `#N` or `owner/repo#N`);
@@ -107,18 +113,25 @@ changes and the ones it needs.
   guidance: the decisions each chain's plan must follow, worded so they
   stand alone. The epic's own rulings (an order, a pre-assigned number, a
   "fold into the existing migration") count.
-- **Names.** Per chain: a kebab-case `SLUG` naming its theme, unique across
-  the chains (it names the branch, the worktree and the plan); `BRANCH` =
-  `<ns>/<SLUG>`, `<ns>` being the branch namespace the user's CLAUDE.md
-  prescribes; `WT`, the worktree path where the user's CLAUDE.md puts
-  worktrees, else `<parent of ROOT>/worktrees/<repo name>/<BRANCH with / as ->`;
+- **Names.** Per chain: a kebab-case `SLUG` naming its theme (it names the
+  branch, the worktree and the plan); `BRANCH` = `<ns>/<SLUG>`, `<ns>`
+  being the branch namespace the user's CLAUDE.md prescribes, else
+  `BRANCH` = `<SLUG>` and `<ns>/` drops out below; `WT`, the worktree path
+  where the user's CLAUDE.md puts worktrees, else
+  `<parent of ROOT>/worktrees/<repo name>/<BRANCH with / as ->`;
   `PLAN_PATH` = `$PLANS_DIR/<today YYYY-MM-DD>-<SLUG>.md`; `PREFIX`, the
   first letter of each word of `SLUG` capped at 3, which is how
-  `/execute-plan` names the chain's slice branches. Choose the slugs so
-  every chain's `PREFIX` differs (`on-demand-mode` and `order-data-model`
-  both give `odm`: reword one): chains sharing a prefix can produce the
-  same slice branch name, and `/execute-plan` resumes an existing branch
-  instead of creating its own.
+  `/execute-plan` names the chain's slice branches
+  (`<ns>/<PREFIX>-<N>-<slice>`). `/execute-plan` resumes a slice branch
+  that already exists instead of creating its own, and `stamp-plans`
+  stamps every plan that shares a slug, so choose each `SLUG` so that:
+  - its `PREFIX` differs from every other chain's (`on-demand-mode` and
+    `order-data-model` both give `odm`: reword one);
+  - no branch starting `<ns>/<PREFIX>-` exists yet:
+    `git branch --list "<ns>/<PREFIX>-*"` and
+    `git ls-remote --heads origin "<ns>/<PREFIX>-*"` print nothing;
+  - no plan already carries it:
+    `grep -lE "^slug: *<SLUG> *(#|$)" "$PLANS_DIR"/*.md` prints nothing.
 
 Print the layout:
 
@@ -133,7 +146,7 @@ Epic #<N> <title> — <K> chains from <BASE short sha>, worktrees under <parent 
 Decisions:
 - B: <decision>
 
-Overlaps (resolved by /restack at merge):
+Overlaps (separate PRs; once one merges, rebase the other onto it and re-test):
 - B, C: orders.go `validate()`
 
 Merge order (migrations): B → C
@@ -149,7 +162,7 @@ Leave out `Decisions:`, `Overlaps`, `Merge order` and `Skipped:` when empty.
 Then ask with `AskUserQuestion` (header "Epic"): "Run these <K> chains?"
 with the options "Run (Recommended)" and "Cancel". A reply through Other is
 an edit: apply it, print the layout again and ask again; a new prefix is
-a new slug, still unique in its initials. Cancel → stop.
+a new slug, which passes the Names checks again. Cancel → stop.
 
 ## Step 4 — Create the worktrees
 
@@ -162,8 +175,10 @@ link-plans "<WT>"
 ```
 
 If `WT`, `BRANCH` or `PLAN_PATH` already exists, or either command fails,
-that chain fails with the reason ("worktree or branch exists — resume with
-/execute-plan in <WT>") and the others continue.
+that chain fails with the reason, naming each of the three that exists
+(`worktree <WT> exists`, `branch <BRANCH> exists`, `plan <PLAN_PATH>
+exists`) and, only when `WT` and `PLAN_PATH` both exist, adding "resume
+with /execute-plan <PLAN_PATH> in <WT>". The others continue.
 
 ## Step 5 — Write the plans
 
@@ -173,9 +188,9 @@ Step 4 set up with the
 filled in.
 
 As each writer reports, check its chain's plan: `PLAN_PATH` exists, opens
-with frontmatter, and — for a chain of more than one child — its `Closes:`
-lines name every child exactly once and its tip slice closes the
-frontmatter `issue`. A plan that fails marks the chain failed
+with frontmatter, and — for a chain of more than one child — its
+`PR <N> closes:` lines name every child exactly once and the tip slice's
+line names the frontmatter `issue`. A plan that fails marks the chain failed
 with the reason; no executor runs for it. A writer that needed numbers
 beyond its reservation gets the next free ones after every chain's
 reservation: put them in the plan and name them in the plan question.
@@ -213,6 +228,7 @@ Plans: <PLAN_PATH per chain>
 Follow-ups: <stub path per chain that wrote one>
 Out of scope: <other-repo work the writers listed>
 Merge order (migrations): B → C — merging out of order means renumbering the later migration first
+Overlaps: B, C — orders.go `validate()`: once one merges, rebase the other onto it and re-test
 Next: /plan-lifecycle:review-stack <stack or PR number> per chain.
 ```
 
@@ -227,10 +243,16 @@ already pushed. Where an executor reported contention (a busy port, a git
 You are writing ONE implementation plan for chain <X> of epic <OWNER_REPO>#<N>.
 You write a plan file only: no code changes, no commits, no branches.
 
-Read the code in <WT> (at <BASE>, origin/<DEFAULT_BRANCH>).
+Worktree: <WT> (at <BASE>, origin/<DEFAULT_BRANCH>). Read code only there:
+absolute paths, and `cd <WT>` at the start of every Bash command. Every
+subagent you dispatch works from <WT> too: put it in the prompt's
+working-directory line (`Work from: <WT>`). The main checkout and the other
+chains' worktrees may differ from <BASE>; do not read them.
+
 Chain <X>: <issues in stack order>. Slice the plan with `## PR N:` headings
 <single child: "only if plan-frontmatter's size rule calls for it"
- | several: "so each issue gets one or more consecutive slices, in this order">.
+ | several: "so each issue gets one or more consecutive slices, in this order,
+ per plan-frontmatter's one-slice-per-issue rule">.
 
 Read in full first: `gh issue view <N> -R <EPIC_REPO> --comments` (the epic), then
 `gh issue view <n> --comments` for each chain issue; <NOTES, or "no notes file">;
@@ -253,9 +275,9 @@ slug `<SLUG>`, issue `<the chain's last issue>`, status `draft`, empty `pr`.
 Slice headings match `^## PR ([0-9]+): (.+)$` with a strict
 Conventional-Commits title.
 <several children: "Each issue is closed by the last slice that implements it: put a
-`Closes: #<n>` line under that slice's heading, as plan-frontmatter's PR slicing
-section describes, so every issue of the chain is declared exactly once and the
-tip slice declares the frontmatter issue.">
+`PR <N> closes: #<n>` line in the plan header, before the first `## PR` heading, as
+plan-frontmatter's PR slicing section describes, so every issue of the chain is
+declared exactly once and the tip slice's line names the frontmatter issue.">
 A task that needs a skill names it and says to invoke it with the Skill
 tool: the executor's subagents load only the skills a task names. The plan
 covers code in this repository and the chain's own PRs; work an issue asks
@@ -288,8 +310,10 @@ subagents create none.
 
 No user is attached to this run. Wherever execute-plan or the execution
 skill would ask a person, take the recommended option, or the safest one
-when none is marked, and record it as a ruling. Where they say to stop (a red check, a rejected push), stop
-and report.
+when none is marked, and ledger it as
+`Task <N>: Ruling: (unattended) <decision> — <the question it answered> — <cost if wrong>`.
+Never mark such a ruling `(user)`: no person decided it. Where they say to
+stop (a red check, a rejected push), stop and report.
 
 Other chains run git and their test suites on this machine at the same
 time. A git command that fails on a `.lock` file was racing another

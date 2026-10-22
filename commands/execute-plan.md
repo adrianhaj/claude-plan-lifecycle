@@ -90,12 +90,12 @@ the frontmatter should have carried it. If none is found anywhere,
 
 Then scan the plan body for **slice headings** matching the regex
 `^## PR ([0-9]+): (.+)$`. Collect matches in file order as `SLICES` — a list
-of `(N, SLICE_TITLE)` pairs. Under each heading, before the slice's first
-`###` heading, a line matching `^Closes: (.+)$` declares the issues that
-slice closes — comma-separated `#N` or `org/repo#N` refs; collect them as
-`CLOSES[N]` (empty when the slice has no such line). (The slicing
-convention — when to slice, heading format, cascade recipe, `Closes:`
-lines — is defined in the `plan-frontmatter` skill.)
+of `(N, SLICE_TITLE)` pairs. Before the first slice heading, a line
+matching `^PR ([0-9]+) closes: (.+)$` declares the issues slice N closes —
+comma-separated `#N` or `org/repo#N` refs; collect them as `CLOSES[N]`
+(empty when no line names slice N). (The slicing convention — when to
+slice, heading format, cascade recipe, `PR N closes:` lines — is defined
+in the `plan-frontmatter` skill.)
 
 **Normalize each `SLICE_TITLE` to a strict Conventional-Commits title** —
 it becomes the PR title verbatim, and semantic-PR-title CI (e.g.
@@ -110,7 +110,8 @@ after the type/scope — the legacy heading style), rewrite it to
 - **Matches** → stacked mode. Validate: slice numbers must be consecutive
   starting at 1 (`1..M`, no gaps, no duplicates). If malformed, stop:
   "Malformed slice headings in plan: expected consecutive `## PR 1:` ..
-  `## PR M:`." Otherwise continue with Step 3 (the execution-skill choice is
+  `## PR M:`." A `PR N closes:` line naming a slice outside `1..M` stops
+  too: "`PR <N> closes:` names a slice the plan lacks." Otherwise continue with Step 3 (the execution-skill choice is
   shared and decided once), then jump to the **Stacked execution** section —
   Steps 4–7 do not run in stacked mode.
 
