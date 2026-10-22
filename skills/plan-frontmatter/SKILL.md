@@ -41,7 +41,10 @@ pr:
      auto-closes the issue. For stacked PRs, ONLY the tip PR carries the
      `Closes` line — under the squash cascade the tip merges last, so
      tip-merged ⇔ effort done; an earlier slice must not close the issue
-     prematurely. `/execute-plan` enforces this when it opens PRs.
+     prematurely. `/execute-plan` enforces this when it opens PRs. The
+     exception is a stack whose slices finish separate issues: there each
+     slice declares the issues it closes with a `Closes:` line (see PR
+     slicing), and `issue:` is the one the tip closes.
 - **status** — one of `draft` | `in-progress` | `merged` | `abandoned`. A bare
   plain scalar — no quotes (`status: draft`, not `status: "draft"`).
 - **pr** — the PR number once a PR is opened, as a bare number (`pr: 2297`) — it
@@ -129,6 +132,18 @@ headings:
 - Slices execute in heading order; each must leave the repo's test + lint
   verify commands green standalone on top of the previous slices.
 - No task in slice N may depend on code written in slice N+1.
+- When the slices finish separate issues (an epic's child issues stacked in
+  one plan), the slice that completes an issue declares it on the line
+  right under its heading, before its first task:
+
+      ## PR 2: feat(export): CSV order export
+      Closes: #13
+
+  `Closes: (.+)` takes comma-separated `#N` or `org/repo#N` refs. Once any
+  slice has one, `/execute-plan` closes exactly the declared issues, each
+  on its slice's PR, instead of putting the frontmatter `issue` on the tip;
+  the tip declares that issue itself. Without `Closes:` lines the tip-only
+  rule holds.
 - No `## PR N:` headings ⇒ `/execute-plan` runs its normal single-PR flow.
 - Branches are named `<ns>/<prefix>-<N>-<slice-slug>` (`<ns>` = your branch
   namespace, prefix derived from the plan slug, slice slug from the heading's

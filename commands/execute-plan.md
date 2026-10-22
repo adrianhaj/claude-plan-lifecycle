@@ -90,8 +90,12 @@ the frontmatter should have carried it. If none is found anywhere,
 
 Then scan the plan body for **slice headings** matching the regex
 `^## PR ([0-9]+): (.+)$`. Collect matches in file order as `SLICES` — a list
-of `(N, SLICE_TITLE)` pairs. (The slicing convention — when to slice, heading
-format, cascade recipe — is defined in the `plan-frontmatter` skill.)
+of `(N, SLICE_TITLE)` pairs. Under each heading, before the slice's first
+`###` heading, a line matching `^Closes: (.+)$` declares the issues that
+slice closes — comma-separated `#N` or `org/repo#N` refs; collect them as
+`CLOSES[N]` (empty when the slice has no such line). (The slicing
+convention — when to slice, heading format, cascade recipe, `Closes:`
+lines — is defined in the `plan-frontmatter` skill.)
 
 **Normalize each `SLICE_TITLE` to a strict Conventional-Commits title** —
 it becomes the PR title verbatim, and semantic-PR-title CI (e.g.
@@ -384,16 +388,19 @@ is already done.
    completed slices."
 4. **Commit leftovers** — identical to Step 5, commit message from
    `SLICE_TITLE`.
-5. **Push and open draft PR.** The `Closes` line goes on the **tip slice
-   only** (N = M) and only when `ISSUE_REF` is non-empty: under the squash
-   cascade the tip merges last, so tip-merged ⇔ effort done — an earlier
-   slice closing the root issue would close it prematurely. Slices N < M
-   never carry a `Closes` line.
+5. **Push and open draft PR.** When any slice declares `CLOSES`, those
+   declarations are the whole `Closes` set: slice N's body opens with one
+   `Closes <ref>` per entry of `CLOSES[N]`, joined by `, ` (`Closes #12,
+   Closes #13`), and a slice without one carries none. Otherwise the
+   `Closes` line goes on the **tip slice only** (N = M) and only when
+   `ISSUE_REF` is non-empty: under the squash cascade the tip merges last,
+   so tip-merged ⇔ effort done — an earlier slice closing the root issue
+   would close it prematurely. Slices N < M then carry no `Closes` line.
 
    ```bash
    git push -u origin "BRANCH[N]"
    gh pr create --draft --title "<SLICE_TITLE>" --base "<DEFAULT_BRANCH or BRANCH[N-1]>" --body "$(cat <<'EOF'
-   Closes <ISSUE_REF>   # ← tip slice (N = M) only, omit otherwise
+   Closes <ISSUE_REF>   # ← per CLOSES[N] when declared; else tip slice (N = M) only
 
    ## Summary
 
